@@ -19,7 +19,6 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
 from skyops.sim import flights as sim
-from skyops.model.errors import LabNotDone
 
 
 def build() -> MCPServer:
@@ -38,7 +37,20 @@ def build() -> MCPServer:
     Use Annotated[str, Field(description=...)] for the parameters, so the schema carries the descriptions,
     and @srv.tool(structured_output=True), so the dict comes back as structuredContent as well as text.
     """
-    raise LabNotDone("Lecture 7.1: implement build(). Hints: labs/s07/README.md, lecture 7.1.")
+    srv = MCPServer("skyops-first", version="0.1.0")
+
+    @srv.tool(structured_output=True)
+    def get_flight_status(
+        flight_number: Annotated[str, Field(description="Flight number: ZZ then digits, e.g. ZZ214.")],
+        date: Annotated[str, Field(description="Operating date at the hub, YYYY-MM-DD.")],
+    ) -> dict[str, str | None]:
+        """Get status, estimated departure, gate and delay reason for one flight on one date. Read-only."""
+        f = sim.find(flight_number.replace(" ", "").upper(), date)
+        if f is None:
+            raise ToolError(f"No flight {flight_number} on {date}.")
+        return sim.as_dict(f)
+
+    return srv
 
 
 async def inspect_in_process() -> None:

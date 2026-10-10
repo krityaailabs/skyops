@@ -26,7 +26,6 @@ from mcp_types import CallToolResult, TextContent, ToolAnnotations
 
 from ..sim.flights import DATE as OPERATING_DAY
 from ..tools.contracts import IdempotencyStore, SideEffect, ToolContract, as_tool
-from skyops.model.errors import LabNotDone
 
 
 def annotations_for(contract: ToolContract) -> ToolAnnotations:
@@ -39,7 +38,13 @@ def annotations_for(contract: ToolContract) -> ToolAnnotations:
     Hosts may use these to decide what needs a person's approval; clients treat them as untrusted hints
     unless they trust this server. They are never this server's security.
     """
-    raise LabNotDone("Lecture 7.2: implement annotations_for(). Hints: labs/s07/README.md, lecture 7.2.")
+    se = contract.side_effect
+    if se is SideEffect.READ:
+        return ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
+    keyed = bool(contract.key_fields)
+    if se is SideEffect.REVERSIBLE_WRITE:
+        return ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=keyed, open_world_hint=False)
+    return ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=keyed, open_world_hint=True)
 
 
 def to_call_result(result: dict[str, Any]) -> CallToolResult:
@@ -51,7 +56,12 @@ def to_call_result(result: dict[str, Any]) -> CallToolResult:
       compact JSON (sorted keys), for clients that don't read structured content.
     Dates and other non-JSON values become strings (json.dumps default=str).
     """
-    raise LabNotDone("Lecture 7.2: implement to_call_result(). Hints: labs/s07/README.md, lecture 7.2.")
+    data = json.loads(json.dumps(result, default=str))
+    if "error" in data:
+        text = f"{data['error']}: {data.get('message', '')}"
+        return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=data, is_error=True)
+    text = json.dumps(data, sort_keys=True, separators=(",", ":"))
+    return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=data, is_error=False)
 
 
 def caller_scope() -> str:

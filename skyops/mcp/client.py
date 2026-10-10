@@ -29,7 +29,6 @@ from mcp_types import CallToolResult, Implementation
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from ..agent.loop import Tool, ToolBox
-from skyops.model.errors import LabNotDone
 
 CLIENT_INFO = Implementation(name="skyops-host", version="0.7.0")
 
@@ -53,7 +52,15 @@ def map_call_result(result: CallToolResult) -> dict[str, Any]:
     - success otherwise: {"text": <the text content, joined with newlines>}.
     Never pass a server's raw exception text through anything else: it's untrusted text (Section 19).
     """
-    raise LabNotDone("Lecture 7.5: implement map_call_result(). Hints: labs/s07/README.md, lecture 7.5.")
+    texts = [c.text for c in result.content if getattr(c, "type", "") == "text"]
+    sc = result.structured_content
+    if result.is_error:
+        if isinstance(sc, dict) and "error" in sc:
+            return sc
+        return {"error": "tool_error", "category": "non_retryable", "message": " ".join(texts), "retryable": False}
+    if isinstance(sc, dict):
+        return sc
+    return {"text": "\n".join(texts)}
 
 
 def protocol_error(e: Exception, challenge: dict[str, str] | None = None) -> dict[str, Any]:

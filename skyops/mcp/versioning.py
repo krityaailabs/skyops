@@ -20,7 +20,6 @@ import argparse
 import json
 from pathlib import Path
 from typing import Any
-from skyops.model.errors import LabNotDone
 
 LOCK = Path(__file__).with_name("tools.lock.json")
 
@@ -60,7 +59,23 @@ def check_lock(listing: dict[str, dict[str, Any]], version: str, lock: dict[str,
       - if needed is minor and got is none: "tools changed without a version bump"
       - if needed is none and version != lock version: "version changed but the lock is stale: run make mcp-lock"
     """
-    raise LabNotDone("Lecture 7.7: implement check_lock(). Hints: labs/s07/README.md, lecture 7.7.")
+    old = lock.get("tools", {})
+    removed = sorted(set(old) - set(listing))
+    added = sorted(set(listing) - set(old))
+    changed = sorted(n for n in set(old) & set(listing) if old[n] != listing[n])
+    breaking = [n for n in changed if is_breaking(old[n], listing[n])]
+    needed = "major" if removed or breaking else ("minor" if added or changed else "none")
+    (a, b, _), (c, d, _) = semver(version), semver(lock.get("version", "0.0.0"))
+    got = "major" if a > c else ("minor" if b > d else "none")
+    rank = {"none": 0, "minor": 1, "major": 2}
+    problems = []
+    if rank[got] < 2:
+        problems += [f"removed tool {n}" for n in removed] + [f"breaking change to {n}" for n in breaking]
+    if needed == "minor" and got == "none":
+        problems.append("tools changed without a version bump")
+    if needed == "none" and version != lock.get("version"):
+        problems.append("version changed but the lock is stale: run make mcp-lock")
+    return problems
 
 
 def current_listing() -> tuple[dict[str, dict[str, Any]], str]:

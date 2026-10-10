@@ -34,7 +34,6 @@ from typing import Any
 import httpx2
 
 from . import auth as A
-from skyops.model.errors import LabNotDone
 
 GATEWAY = "https://gateway.skyops.example/mcp"
 CURRENT = "2026-07-28"
@@ -86,7 +85,25 @@ def decide(method: str | None, name: str | None, version: str | None, scopes: li
        - otherwise Decision("forward", backend=<its name>)
     5. anything else: refuse, 404, -32601, "method not found".
     """
-    raise LabNotDone("Lecture 7.9: implement decide(). Hints: labs/s07/README.md, lecture 7.9.")
+    if version != CURRENT:
+        return Decision("refuse", status=400, code=-32022, reason="unsupported protocol version")
+    if not method:
+        return Decision("refuse", status=400, code=-32020, reason="Mcp-Method missing")
+    if method == "server/discover":
+        return Decision("discover")
+    if method in LISTS:
+        return Decision("fan_out")
+    if method in ("tools/call", "resources/read", "prompts/get"):
+        if not name:
+            return Decision("refuse", status=400, code=-32020, reason="Mcp-Name missing")
+        owner = next((b for b in backends if any(fnmatch(name, p) for p in b.owns)), None)
+        if owner is None:
+            return Decision("refuse", status=400, code=-32602, reason="unknown name")
+        needed = list(dict.fromkeys([*owner.baseline, *A.required_scopes(method, name)]))
+        if not set(needed) <= set(scopes):
+            return Decision("refuse", status=403, reason="insufficient_scope", scope=needed)
+        return Decision("forward", backend=owner.name)
+    return Decision("refuse", status=404, code=-32601, reason="method not found")
 
 
 class BackendFailed(Exception):

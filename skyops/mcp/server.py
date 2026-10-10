@@ -28,7 +28,6 @@ from ..tools.contracts import IdempotencyStore
 from . import auth as A
 from .adapter import register
 from .facade import crew_contract
-from skyops.model.errors import LabNotDone
 
 VERSION = "0.7.0"
 HINTS = {"server/discover": CacheHint(3_600_000, "public"), "tools/list": CacheHint(300_000, "public"),
@@ -60,7 +59,10 @@ def booking_resource(booking_ref: str) -> str:
     Who may read it is decided before this runs: the bookings:read scope (ScopeGuard), and cacheScope
     "private", so no shared cache serves one caller's booking to another.
     """
-    raise LabNotDone("Lecture 7.3: implement booking_resource(). Hints: labs/s07/README.md, lecture 7.3.")
+    b = bookings.get(booking_ref)
+    if b is None:
+        raise ResourceNotFoundError(f"No booking {booking_ref}")
+    return json.dumps(b, sort_keys=True)
 
 
 def disruption_brief(flight_number: str) -> str:
@@ -72,7 +74,10 @@ def disruption_brief(flight_number: str) -> str:
     The check looks for these exact phrases: the flight number, "get_flight_status", "get_crew_status",
     "three lines" and "not message passengers" (case doesn't matter).
     """
-    raise LabNotDone("Lecture 7.3: implement disruption_brief(). Hints: labs/s07/README.md, lecture 7.3.")
+    return (f"Prepare a disruption brief for {flight_number}. First look it up with get_flight_status; if it is "
+            "delayed, also check its crew with get_crew_status. Then write exactly three lines for the duty "
+            "manager: 1) status, 2) cause, 3) the next decision needed. Do not message passengers: this brief "
+            "informs a person, it doesn't act.")
 
 
 def build_flight_server(*, auth: bool = False, gw: Gateways | None = None,
