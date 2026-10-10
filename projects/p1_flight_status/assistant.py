@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from skyops.agent.loop import Budgets, RunResult, ToolBox, run_agent
 from skyops.model.client import ModelClient
 from skyops.sim import flights as sim
-from skyops.model.errors import LabNotDone
 
 NAMES = {"LHR": "London Heathrow", "FRA": "Frankfurt", "JFK": "New York JFK", "DXB": "Dubai", "BLR": "Bengaluru",
          "SIN": "Singapore", "SYD": "Sydney", "NRT": "Tokyo Narita", "CDG": "Paris"}
@@ -58,7 +57,15 @@ def chosen_flight(run: RunResult) -> tuple[str | None, str | None]:
     - find_departures with exactly one departure that day -> that flight;
     - find_departures with none or several -> no choice (None, None).
     """
-    raise LabNotDone("Lecture 4.8: implement chosen_flight(). Hints: labs/s04/README.md, lecture 4.8.")
+    for name, args in reversed(run.tool_calls):
+        if name == "get_flight_status" and isinstance(args.get("flight_number"), str):
+            return args["flight_number"], args.get("date", sim.DATE)
+        if name == "find_departures" and isinstance(args.get("destination"), str):
+            rows = sim.departures_to(args["destination"], args.get("date", sim.DATE))
+            if len(rows) == 1:
+                return rows[0].flight_number, rows[0].operating_date
+            return None, None
+    return None, None
 
 
 # Sized from the Section 4 eval (lecture 4.6): about twice the largest healthy run.
@@ -84,7 +91,22 @@ def answer(question: str, client: ModelClient, budgets: Budgets = BUDGETS) -> Fl
     - If the chosen flight doesn't exist, say "I couldn't find flight <number> on <date>.", grounded=True.
     - Otherwise return describe(record), with flight_number and status from the record, grounded=True.
     """
-    raise LabNotDone("Lecture 4.8: implement answer(). Hints: labs/s04/README.md, lecture 4.8.")
+    run = run_agent(question, client, ToolBox.flight_tools(), budgets=budgets)
+    if run.stop != "answered":
+        return FlightAnswer(run.answer, None, None, False, run.stop)
+    number, date = chosen_flight(run)
+    if number is None:
+        rows = ambiguous(run)
+        if rows:
+            where = NAMES.get(rows[0].destination, rows[0].destination)
+            listed = " and ".join(f"{r.flight_number} at {r.scheduled_departure}" for r in rows)
+            return FlightAnswer(f"I found {len(rows)} flights to {where}: {listed}. Which one do you mean?",
+                                None, None, False, run.stop)
+        return FlightAnswer(run.answer, None, None, False, run.stop)
+    rec = sim.find(number, date)
+    if rec is None:
+        return FlightAnswer(f"I couldn't find flight {number.upper()} on {date}.", None, None, True, run.stop)
+    return FlightAnswer(describe(rec), rec.flight_number, rec.status, True, run.stop)
 
 
 def main() -> None:

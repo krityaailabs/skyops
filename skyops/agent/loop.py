@@ -115,7 +115,16 @@ def validate_call(box: ToolBox, call: ToolUseBlock) -> tuple[BaseModel | None, T
     Unknown tool -> error "unknown_tool". Arguments that fail the Pydantic model -> "invalid_arguments",
     with the field name and the validator's message. Neither is retryable as-is: the model must change the call.
     """
-    raise LabNotDone("Lecture 4.3: implement validate_call(). Hints: labs/s04/README.md, lecture 4.3.")
+    tool = box.tools.get(call.name)
+    if tool is None:
+        return None, error_result(call.id, "unknown_tool", f"No tool named {call.name}. "
+                                  f"Available: {', '.join(box.tools)}.", retryable=False)
+    try:
+        return tool.args_model.model_validate(call.input), None
+    except ValidationError as e:
+        err = e.errors(include_url=False)[0]
+        where = ".".join(str(p) for p in err["loc"]) or "arguments"
+        return None, error_result(call.id, "invalid_arguments", f"{where}: {err['msg']}", retryable=False)
 
 
 def execute(box: ToolBox, call: ToolUseBlock) -> ToolResultBlock:
@@ -129,7 +138,26 @@ def execute(box: ToolBox, call: ToolUseBlock) -> ToolResultBlock:
     - the model sees the exception's type name only; the detail goes to the server log, redacted;
     - a tool that returns something that isn't a JSON-serialisable dict is "tool_failed" too.
     """
-    raise LabNotDone("Lecture 4.5: implement execute(). Hints: labs/s04/README.md, lecture 4.5.")
+    args, err = validate_call(box, call)
+    if err is not None:
+        return err
+    try:
+        out = box.tools[call.name].fn(args)
+        if not isinstance(out, dict):
+            raise TypeError(f"tool returned {type(out).__name__}, not dict")
+        out = dict(out)                                  # never modify the tool's own object
+        if "error" in out:
+            out.setdefault("retryable", False)
+            return ToolResultBlock(tool_use_id=call.id, content=json.dumps(out), is_error=True)
+        return ToolResultBlock(tool_use_id=call.id, content=json.dumps(out))
+    except Exception as e:  # noqa: BLE001 - the loop must survive any tool bug
+        if isinstance(e, LabNotDone):       # an unfinished lab must fail loudly, not look like a tool error
+            raise
+        log.error("tool failed", extra={"tool": call.name, "error_type": type(e).__name__, "detail": redact(str(e))})
+        if isinstance(e, (TimeoutError, ConnectionError)) or getattr(e, "retryable", False):
+            return error_result(call.id, "tool_unavailable", f"{call.name} did not respond: {type(e).__name__}",
+                                retryable=True)
+        return error_result(call.id, "tool_failed", f"{call.name} failed: {type(e).__name__}", retryable=False)
 
 
 def check_budgets(b: Budgets, steps: int, tokens: int, elapsed_s: float) -> Stop | None:
@@ -138,13 +166,25 @@ def check_budgets(b: Budgets, steps: int, tokens: int, elapsed_s: float) -> Stop
     Order matters when several are exhausted at once: time, then tokens, then steps, so the
     reported reason is the most expensive one.
     """
-    raise LabNotDone("Lecture 4.4: implement check_budgets(). Hints: labs/s04/README.md, lecture 4.4.")
+    if elapsed_s >= b.max_seconds:
+        return "time_budget"
+    if tokens >= b.max_tokens:
+        return "token_budget"
+    if steps >= b.max_steps:
+        return "step_budget"
+    return None
 
 
 def detect_runaway(history: list[tuple[str, dict[str, Any]]], max_repeats: int) -> bool:
     """Lecture 4.6: True when any (tool, arguments) pair has been proposed max_repeats times or more.
     Arguments compare as canonical JSON, so key order doesn't hide a repeat; repeats needn't be consecutive."""
-    raise LabNotDone("Lecture 4.6: implement detect_runaway(). Hints: labs/s04/README.md, lecture 4.6.")
+    seen: dict[str, int] = {}
+    for name, args in history:
+        k = json.dumps([name, args], sort_keys=True)
+        seen[k] = seen.get(k, 0) + 1
+        if seen[k] >= max_repeats:
+            return True
+    return False
 
 
 def run_agent(question: str, client: ModelClient, box: ToolBox, budgets: Budgets = Budgets(),
@@ -152,4 +192,34 @@ def run_agent(question: str, client: ModelClient, box: ToolBox, budgets: Budgets
               max_tokens_per_call: int = 512) -> RunResult:
     """Lecture 4.2: the loop. Ask the model; if it proposes tools, validate and run them in our code,
     append the results, and ask again; stop on an answer or when a budget or the runaway guard says so."""
-    raise LabNotDone("Lecture 4.2: implement run_agent(). Hints: labs/s04/README.md, lecture 4.2.")
+    trace = Trace(question=question, price=load_price())
+    client.trace = trace
+    messages = [Message.user(question)]
+    history: list[tuple[str, dict[str, Any]]] = []
+    start, steps = clock(), 0
+    while True:
+        stop = check_budgets(budgets, steps, trace.usage.total, clock() - start)
+        if stop is None and detect_runaway(history, budgets.max_repeats):
+            stop = "repeated_call"
+        if stop is not None:
+            trace.answer(f"[{stop}] {STOP_MESSAGES[stop]}")
+            return RunResult(STOP_MESSAGES[stop], stop, trace, steps, history)
+        resp = client.complete(ChatRequest(model=client.model, system=system, messages=messages,
+                                           tools=box.specs(), max_tokens=max_tokens_per_call))
+        steps += 1
+        messages.append(resp.as_message())
+        if resp.stop_reason in ("refusal", "context_exceeded"):
+            stop = "refused" if resp.stop_reason == "refusal" else "context_exceeded"
+            trace.answer(f"[{stop}] {STOP_MESSAGES[stop]}")
+            return RunResult(STOP_MESSAGES[stop], stop, trace, steps, history)
+        if resp.stop_reason != "tool_use":         # end_turn, max_tokens (short answers only), other
+            trace.answer(resp.text)
+            return RunResult(resp.text, "answered", trace, steps, history)
+        results = []
+        for call in resp.tool_calls:            # proposals; our code decides what runs
+            history.append((call.name, call.input))
+            res = execute(box, call)
+            trace.tool_call(call.name, call.input, not res.is_error,
+                            res.content[:80] + ("…" if len(res.content) > 80 else ""))
+            results.append(res)
+        messages.append(Message(role="user", content=results))

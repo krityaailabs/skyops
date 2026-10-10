@@ -12,7 +12,6 @@ from skyops.cost import per_thousand
 from skyops.model.client import get_client
 
 from .cases import CASES, Case
-from skyops.model.errors import LabNotDone
 
 
 @dataclass
@@ -47,12 +46,33 @@ def check_case(case: Case, run: RunResult) -> CaseResult:
     Failure messages: "stopped: <stop>", "steps: <n> > <max>", "missing: <group joined by ' / '>",
     "tool not called: <name>", "forbidden: <phrase>".
     """
-    raise LabNotDone("Lecture 4.7: implement check_case(). Hints: labs/s04/README.md, lecture 4.7.")
+    fails: list[str] = []
+    text = run.answer.lower()
+    if run.stop != "answered":
+        fails.append(f"stopped: {run.stop}")
+    if run.steps > case.max_steps:
+        fails.append(f"steps: {run.steps} > {case.max_steps}")
+    for group in case.answer_has:
+        if not any(p.lower() in text for p in group):
+            fails.append(f"missing: {' / '.join(group)}")
+    for t in case.tools:
+        if t not in run.tools_used:
+            fails.append(f"tool not called: {t}")
+    for p in case.forbid:
+        if p.lower() in text:
+            fails.append(f"forbidden: {p}")
+    return CaseResult(case.id, not fails, fails)
 
 
 def run_eval(cases: list[Case] = CASES, fixture_dir: str = "fixtures/s04") -> EvalReport:
     """Run every case through the real loop against its replay, check it, and collect the report."""
-    raise LabNotDone("Lecture 4.7: implement run_eval(). Hints: labs/s04/README.md, lecture 4.7.")
+    results, runs = [], []
+    for case in cases:
+        run = run_agent(case.question, get_client(fixture=f"{fixture_dir}/{case.id}.jsonl", match="strict"),
+                        ToolBox.flight_tools())
+        runs.append(run)
+        results.append(check_case(case, run))
+    return EvalReport(results, runs)
 
 
 def main() -> None:
