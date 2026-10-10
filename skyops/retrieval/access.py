@@ -18,7 +18,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .docs import DocMeta
-from skyops.model.errors import LabNotDone
 
 ROLES = ("agent", "duty_manager", "ground_staff", "crew_control", "security")
 
@@ -44,7 +43,7 @@ def can_read(p: Principal, meta: DocMeta) -> bool:
     are restricted by their role lists (MGR-007 lists only duty_manager). Retriever.search calls this for
     every chunk, before ranking, on every search: every search check from 9.3 on needs it.
     """
-    raise LabNotDone("Lecture 9.3: implement can_read(). Hints: labs/s09/README.md, lecture 9.3.")
+    return p.tenant == meta.tenant and bool(set(p.roles) & set(meta.roles))
 
 
 # The directory: who works where, in which role. In production this is your identity provider's groups,

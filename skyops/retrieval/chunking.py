@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 
 from .docs import DocMeta, Document
 from .text import count_tokens, slug
-from skyops.model.errors import LabNotDone
 
 
 @dataclass(frozen=True)
@@ -125,7 +124,26 @@ def structure_chunks(doc: Document, max_tokens: int = 220) -> list[Chunk]:
     sections=(block.section,) for that section, start/end = the first block's start and the last block's
     end, tokens=count_tokens(text), strategy="structure".
     """
-    raise LabNotDone("Lecture 9.2: implement structure_chunks(). Hints: labs/s09/README.md, lecture 9.2.")
+    bl = [b for b in blocks(doc) if b.kind != "heading"]
+    out: list[Chunk] = []
+    cur: list[Block] = []
+
+    def flush() -> None:
+        if not cur:
+            return
+        prefix = doc.meta.title + (f" > {cur[0].heading}" if cur[0].heading else "")
+        text = prefix + "\n\n" + "\n\n".join(b.text for b in cur)
+        out.append(Chunk(f"{doc.meta.key}#{len(out)}", doc.meta, text, (cur[0].section,), cur[0].start, cur[-1].end,
+                         count_tokens(text), "structure"))
+        cur.clear()
+
+    for b in bl:
+        if cur and (b.section != cur[0].section or
+                    count_tokens("\n\n".join(x.text for x in [*cur, b])) > max_tokens):
+            flush()
+        cur.append(b)
+    flush()
+    return out
 
 
 @dataclass

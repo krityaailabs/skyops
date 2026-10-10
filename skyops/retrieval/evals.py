@@ -25,7 +25,6 @@ from .access import Principal
 from .chunking import Chunk
 from .docs import ROOT
 from .search import Retriever
-from skyops.model.errors import LabNotDone
 
 QUERIES = ROOT / "data/procedures/eval_queries.jsonl"
 
@@ -75,13 +74,21 @@ def recall_at_k(ranked: list[set[str]], relevant: set[str], k: int) -> float:
     Return |(union of ranked[:k]) & relevant| / |relevant|. An empty `relevant` is an error (ValueError):
     a query with nothing to find can't measure recall; test it with an access or a no-answer check instead.
     """
-    raise LabNotDone("Lecture 9.6: implement recall_at_k(). Hints: labs/s09/README.md, lecture 9.6.")
+    if not relevant:
+        raise ValueError("recall is undefined for a query with no relevant labels")
+    found: set[str] = set()
+    for s in ranked[:k]:
+        found |= s
+    return len(found & relevant) / len(relevant)
 
 
 def reciprocal_rank(ranked: list[set[str]], relevant: set[str]) -> float:
     """Lecture 9.6: 1 / rank of the first result whose set shares at least one label with `relevant` (ranks
     start at 1); 0.0 if no result does. The mean of this over queries is MRR."""
-    raise LabNotDone("Lecture 9.6: implement reciprocal_rank(). Hints: labs/s09/README.md, lecture 9.6.")
+    for i, s in enumerate(ranked, 1):
+        if s & relevant:
+            return 1.0 / i
+    return 0.0
 
 
 @dataclass

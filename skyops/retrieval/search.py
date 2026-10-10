@@ -27,7 +27,6 @@ from .chunking import Chunk
 from .docs import TODAY, DocMeta
 from .store import ChunkStore, Hit, TenantIndexes
 from .text import count_tokens, tokens
-from skyops.model.errors import LabNotDone
 
 RETRIEVAL_PRICES = Path(__file__).resolve().parent.parent.parent / "config/retrieval.toml"
 RRF_K = 60
@@ -49,7 +48,11 @@ def matches(meta: DocMeta, f: Filters) -> bool:
     - if f.owners is set: meta.owner is in it;
     - if f.doc_prefix is set: meta.doc_id starts with it.
     """
-    raise LabNotDone("Lecture 9.3: implement matches(). Hints: labs/s09/README.md, lecture 9.3.")
+    if not (meta.effective <= f.as_of and (meta.withdrawn is None or f.as_of < meta.withdrawn)):
+        return False
+    if f.owners is not None and meta.owner not in f.owners:
+        return False
+    return f.doc_prefix is None or meta.doc_id.startswith(f.doc_prefix)
 
 
 def rrf_fuse(rankings: list[list[str]], k: int = RRF_K) -> list[tuple[str, float]]:
@@ -59,7 +62,11 @@ def rrf_fuse(rankings: list[list[str]], k: int = RRF_K) -> list[tuple[str, float
     Return (id, score) pairs, highest score first; ties broken by id, ascending, so the order is stable.
     An id missing from a list simply gets nothing from that list.
     """
-    raise LabNotDone("Lecture 9.3: implement rrf_fuse(). Hints: labs/s09/README.md, lecture 9.3.")
+    score: dict[str, float] = {}
+    for ranking in rankings:
+        for rank, cid in enumerate(ranking, 1):
+            score[cid] = score.get(cid, 0.0) + 1.0 / (k + rank)
+    return sorted(score.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 _CODE = re.compile(r"\b[A-Z]{2,}[A-Z0-9-]*\d*\b")

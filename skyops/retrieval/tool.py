@@ -20,7 +20,6 @@ from .access import Principal
 from .chunking import Chunk
 from .docs import TODAY
 from .search import Filters, Retriever
-from skyops.model.errors import LabNotDone
 
 FIELDS = ["doc_id", "version", "title", "section", "effective", "text"]
 MAX_RESULT_TOKENS = 1200
@@ -61,7 +60,15 @@ def search_procedures(args: SearchProceduresArgs, retriever: Retriever, principa
        "as_of": as_of.isoformat(), and "note": "No procedure in force matches; say so and do not answer from
        memory." when there are no rows, otherwise None.
     """
-    raise LabNotDone("Lecture 9.9: implement search_procedures(). Hints: labs/s09/README.md, lecture 9.9.")
+    if not fresh:
+        raise ToolError("retryable", "index_stale",
+                        "Procedure search is behind its freshness window. Tell the person; do not answer from memory.")
+    res = retriever.search(args.question, principal, k=args.k, mode="hybrid", rerank=True, filters=Filters(as_of=as_of))
+    rows = [citation(h.chunk) for h in res.hits]
+    page = shape_result(rows, FIELDS, page_size=args.k, max_tokens=MAX_RESULT_TOKENS)
+    page["as_of"] = as_of.isoformat()
+    page["note"] = None if rows else "No procedure in force matches; say so and do not answer from memory."
+    return page
 
 
 def make_search_contract(retriever: Retriever, principal_of: Callable[[], Principal],
