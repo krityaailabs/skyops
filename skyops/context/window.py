@@ -50,7 +50,8 @@ def pinned_missing(req: ChatRequest, blocks: list[PinnedBlock]) -> list[str]:
     messages don't count: pinned text belongs in the system prompt, where trimming history can't reach it.
     A req.system of None means every block is missing.
     """
-    raise LabNotDone("Lecture 8.7: implement pinned_missing(). Hints: labs/s08/README.md, lecture 8.7.")
+    system = req.system or ""
+    return [b.id for b in blocks if b.render() not in system]
 
 
 def fit_to_window(req: ChatRequest, window: Window, blocks: list[PinnedBlock]) -> tuple[ChatRequest, int]:
@@ -66,4 +67,18 @@ def fit_to_window(req: ChatRequest, window: Window, blocks: list[PinnedBlock]) -
     5. Before returning any result (including case 1), if pinned_missing(result, blocks) is not empty,
        raise PinnedRulesMissing(missing): fitting must never hide a request that lost its rules elsewhere.
     """
-    raise LabNotDone("Lecture 8.7: implement fit_to_window(). Hints: labs/s08/README.md, lecture 8.7.")
+    out, dropped = req, 0
+    if account(req).total > window.input_limit:
+        starts = turn_starts(req.messages) or [0]
+        for cut in starts[1:]:               # keeping messages from a later turn = dropping one more turn
+            dropped += 1
+            out = req.model_copy(update={"messages": req.messages[cut:]})
+            if account(out).total <= window.input_limit:
+                break
+        else:
+            last = req.model_copy(update={"messages": req.messages[starts[-1]:]})
+            raise ContextOverflow(account(last), window.input_limit)
+    missing = pinned_missing(out, blocks)
+    if missing:
+        raise PinnedRulesMissing(missing)
+    return out, dropped

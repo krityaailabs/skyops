@@ -25,4 +25,15 @@ def retention_problems(sent: list[ChatRequest], blocks: list[PinnedBlock], windo
        than window.input_limit (total and limit as plain integers, no separators).
     An empty list means every request kept its rules, its tool pairs and its budget.
     """
-    raise LabNotDone("Lecture 8.8: implement retention_problems(). Hints: labs/s08/README.md, lecture 8.8.")
+    problems: list[str] = []
+    for i, r in enumerate(sent, 1):
+        problems += [f"request {i}: pinned {m} missing" for m in pinned_missing(r, blocks)]
+        for b in blocks:
+            n = (r.system or "").count(b.marker())
+            if n > 1:
+                problems.append(f"request {i}: pinned {b.id} appears {n} times")
+        problems += [f"request {i}: orphaned tool result {t}" for t in orphaned_results(r.messages)]
+        total = account(r).total
+        if total > window.input_limit:
+            problems.append(f"request {i}: {total} tokens over the input limit {window.input_limit}")
+    return problems

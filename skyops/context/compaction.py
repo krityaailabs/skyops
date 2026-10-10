@@ -135,4 +135,21 @@ def compact(messages: list[Message], previous_summary: str, keep_turns: int = 2,
        dropped_messages=cut).
     Compaction never sees the system prompt, so pinned rules can't be summarised away.
     """
-    raise LabNotDone("Lecture 8.8: implement compact(). Hints: labs/s08/README.md, lecture 8.8.")
+    starts = turn_starts(messages)
+    if len(starts) <= keep_turns:
+        return Compacted(previous_summary, list(messages), 0, 0)
+    cut = starts[-keep_turns]
+    lines = [l for l in previous_summary.splitlines() if l.strip()]
+    omitted = 0
+    if lines and lines[0].startswith("- (") and lines[0].endswith(" earlier lines omitted)"):
+        omitted = int(lines[0][3:].split()[0])
+        lines = lines[1:]
+    lines += summarise(messages[:cut])
+    if len(lines) + (1 if omitted else 0) > max_lines:
+        extra = len(lines) - (max_lines - 1)
+        omitted += extra
+        lines = lines[extra:]
+    if omitted:
+        lines = [f"- ({omitted} earlier lines omitted)"] + lines
+    return Compacted("\n".join(lines), messages[cut:], dropped_turns=sum(1 for s in starts if s < cut),
+                     dropped_messages=cut)
