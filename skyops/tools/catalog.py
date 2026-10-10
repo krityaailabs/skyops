@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..sim import flights as sim
 from .contracts import IdempotencyStore, SideEffect, ToolContract, ToolError, as_tool, shape_result
-from skyops.model.errors import LabNotDone
 
 VOUCHER_LIMIT_EUR = 150          # above this, a person approves (Section 18 turns this into an approval tier)
 PAGE_SIZE = 5
@@ -111,7 +110,13 @@ def list_departures(args: ListDeparturesArgs) -> dict[str, Any]:
     "status"], PAGE_SIZE, decode_cursor(args.cursor)), then replace next_cursor with encode_cursor(next_cursor)
     (or None). The model only ever sees opaque page tokens.
     """
-    raise LabNotDone("Lecture 5.9: implement list_departures(). Hints: labs/s05/README.md, lecture 5.9.")
+    day = args.date.isoformat()
+    rows = [sim.as_dict(f) for f in sim.departures_on(day)
+            if args.destination is None or f.destination == args.destination.upper()]
+    page = shape_result(rows, ["flight_number", "destination", "scheduled_departure", "status"], PAGE_SIZE,
+                        decode_cursor(args.cursor))
+    page["next_cursor"] = encode_cursor(page["next_cursor"]) if page["next_cursor"] is not None else None
+    return page
 
 
 def get_flight_status(args: StatusArgs) -> dict[str, Any]:
@@ -178,7 +183,14 @@ def check_voucher(args: VoucherArgs) -> None:
     - flight status not DELAYED or CANCELLED: ToolError("non_retryable", "flight_not_disrupted", ...)
     - amount_eur > VOUCHER_LIMIT_EUR: ToolError("needs_human", "approval_required", ...)
     """
-    raise LabNotDone("Lecture 5.9: implement check_voucher(). Hints: labs/s05/README.md, lecture 5.9.")
+    f = sim.find(args.flight_number, sim.DATE)
+    if f is None:
+        raise ToolError("non_retryable", "not_found", f"No flight {args.flight_number} today.")
+    if f.status not in ("DELAYED", "CANCELLED"):
+        raise ToolError("non_retryable", "flight_not_disrupted", f"{args.flight_number} is {f.status.lower()}.")
+    if args.amount_eur > VOUCHER_LIMIT_EUR:
+        raise ToolError("needs_human", "approval_required",
+                        f"{args.amount_eur} EUR is above the {VOUCHER_LIMIT_EUR} EUR limit; a duty manager must approve.")
 
 
 def issue_voucher(args: VoucherArgs, gw: Gateways) -> dict[str, Any]:

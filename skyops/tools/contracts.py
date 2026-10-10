@@ -80,7 +80,10 @@ def idempotency_key(contract: ToolContract, args: BaseModel, scope: str) -> str:
     Fields are read from args.model_dump(mode="json") (dates become ISO strings). String values are
     normalised with normalise_text, so a re-send that only differs in spacing or case has the same key.
     """
-    raise LabNotDone("Lecture 5.5: implement idempotency_key(). Hints: labs/s05/README.md, lecture 5.5.")
+    values = args.model_dump(mode="json")
+    picked = {f: normalise_text(values[f]) if isinstance(values[f], str) else values[f] for f in contract.key_fields}
+    body = json.dumps([contract.name, scope, picked], sort_keys=True)
+    return hashlib.sha256(body.encode()).hexdigest()[:24]
 
 
 def normalise_text(s: str) -> str:
@@ -113,7 +116,28 @@ def execute_write(contract: ToolContract, args: BaseModel, store: IdempotencySto
       If it returns a dict with "error", nothing is stored either. Otherwise store the result and the
       arguments under the key. Return {"replayed": False, "idempotency_key": key, **result}.
     """
-    raise LabNotDone("Lecture 5.5: implement execute_write(). Hints: labs/s05/README.md, lecture 5.5.")
+    key = idempotency_key(contract, args, scope)
+    if contract.precheck is not None:
+        contract.precheck(args)
+    sent = args.model_dump(mode="json")
+    if dry_run:
+        if not contract.supports_dry_run:
+            raise ToolError("non_retryable", "dry_run_unsupported", f"{contract.name} has no dry-run mode")
+        would_replay = key in store.results or key in store.previewed
+        store.previewed.add(key)
+        return {"dry_run": True, "would": contract.name, "would_replay": would_replay, "args": sent,
+                "idempotency_key": key}
+    if key in store.results:
+        if store.args[key] != sent:
+            raise ToolError("non_retryable", "idempotency_conflict",
+                            f"{contract.name} already ran for this action with different details; "
+                            "the original result stands")
+        return {"replayed": True, **store.results[key]}
+    out = contract.fn(args)
+    if "error" not in out:
+        store.results[key] = {"idempotency_key": key, **out}
+        store.args[key] = sent
+    return {"replayed": False, "idempotency_key": key, **out}
 
 
 # ---------- 5.6 error taxonomy ----------
@@ -128,7 +152,16 @@ def classify_exception(e: Exception) -> ToolError:
     - anything else: non_retryable, code "internal_error".
     The message is "<ExceptionType>" only: exception text never reaches the model (lecture 4.5).
     """
-    raise LabNotDone("Lecture 5.6: implement classify_exception(). Hints: labs/s05/README.md, lecture 5.6.")
+    if isinstance(e, ToolError):
+        return e
+    name = type(e).__name__
+    if isinstance(e, (TimeoutError, ConnectionError)) or getattr(e, "retryable", False):
+        return ToolError("retryable", "unavailable", name)
+    if isinstance(e, PermissionError):
+        return ToolError("needs_human", "not_permitted", name)
+    if isinstance(e, ValidationError):
+        return ToolError("non_retryable", "invalid_arguments", name)
+    return ToolError("non_retryable", "internal_error", name)
 
 
 # ---------- 5.7 shaping results ----------
@@ -150,7 +183,25 @@ def shape_result(rows: list[dict[str, Any]], fields: list[str], page_size: int, 
     Return {"items", "total": len(rows), "next_cursor": cursor + len(items), or None when no rows remain
     after this page, "truncated": True if the cap dropped or cut anything, "oversized": True/False}.
     """
-    raise LabNotDone("Lecture 5.7: implement shape_result(). Hints: labs/s05/README.md, lecture 5.7.")
+    picked = [{f: r.get(f) for f in fields} for r in rows]
+    items = picked[cursor:cursor + page_size]
+    page_len = len(items)
+    while estimate_tokens(items) > max_tokens and len(items) > 1:
+        items = items[:-1]
+    oversized = False
+    if items and estimate_tokens(items) > max_tokens:
+        item, oversized = dict(items[0]), True
+        while estimate_tokens([item]) > max_tokens:
+            longest = max((k for k, v in item.items() if isinstance(v, str) and len(v) > 1),
+                          key=lambda k: len(item[k]), default=None)
+            if longest is None:
+                break
+            v = item[longest]
+            item[longest] = v[:max(1, len(v) // 2)].rstrip("…") + "…"
+        items = [item]
+    nxt = cursor + len(items)
+    return {"items": items, "total": len(rows), "next_cursor": nxt if nxt < len(rows) else None,
+            "truncated": len(items) < page_len or oversized, "oversized": oversized}
 
 
 # ---------- 5.8 / 5.9 contract lint ----------
@@ -175,7 +226,31 @@ def lint_contract(c: ToolContract) -> list[str]:
     - "bad_key_field": a key field that isn't an argument of the tool.
     - "no_documented_errors": errors list is empty.
     """
-    raise LabNotDone("Lecture 5.8: implement lint_contract(). Hints: labs/s05/README.md, lecture 5.8.")
+    problems = []
+    if c.name.lower() in VAGUE_NAMES or "_" not in c.name:
+        problems.append("vague_name")
+    if len(c.description) < 40:
+        problems.append("short_description")
+    d = c.description.lower()
+    if c.is_write and "reversible" not in d:
+        problems.append("no_side_effect_in_description")
+    elif (c.side_effect is SideEffect.REVERSIBLE_WRITE and "irreversible" in d) or \
+            (c.side_effect is SideEffect.IRREVERSIBLE_WRITE and "irreversible" not in d):
+        problems.append("side_effect_mismatch")
+    props = c.args_model.model_json_schema().get("properties", {})
+    if any("description" not in p for p in props.values()):
+        problems.append("undocumented_field")
+    if any(RAW_QUERY_FIELDS.match(n) for n in props):
+        problems.append("free_form_query")
+    if any(SECRET_FIELDS.search(n) for n in props):
+        problems.append("secret_argument")
+    if c.is_write and not c.key_fields:
+        problems.append("write_without_key")
+    if any(f not in props for f in c.key_fields):
+        problems.append("bad_key_field")
+    if not c.errors:
+        problems.append("no_documented_errors")
+    return problems
 
 
 # ---------- integration with the Section 4 loop ----------
