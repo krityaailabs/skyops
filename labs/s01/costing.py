@@ -8,7 +8,6 @@ from dataclasses import dataclass
 
 from skyops.cost import Price, cost_usd, load_price, per_thousand
 from skyops.model.types import ModelResponse, Usage
-from skyops.model.errors import LabNotDone
 
 
 @dataclass(frozen=True)
@@ -28,7 +27,14 @@ def report(responses: list[ModelResponse], price: Price) -> CostReport:
     Use the usage the provider returned, never an estimate. Report per 1,000 calls: a per-call
     figure is too small to compare or to put in a budget.
     """
-    raise LabNotDone("Lecture 1.4: implement report(). Hints: labs/s01/README.md, lecture 1.4.")
+    usage = sum((r.usage for r in responses), Usage())
+    total = cost_usd(usage, price)
+    input_cost = cost_usd(Usage(input_tokens=usage.input_tokens, cache_read_tokens=usage.cache_read_tokens,
+                                cache_write_tokens=usage.cache_write_tokens), price)
+    per_call = total / len(responses) if responses else 0.0
+    return CostReport(calls=len(responses), input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+                      total_usd=total, per_call_usd=per_call, per_1000_calls_usd=per_thousand(per_call),
+                      input_share=input_cost / total if total else 0.0)
 
 
 def main() -> None:

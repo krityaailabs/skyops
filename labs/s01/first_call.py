@@ -10,7 +10,6 @@ from typing import Callable
 from skyops.model.client import ModelClient, get_client
 from skyops.model.errors import ModelError
 from skyops.model.types import ChatRequest, Message, ModelResponse
-from skyops.model.errors import LabNotDone
 
 SYSTEM = "You are a concise assistant for airline operations engineers. Answer in one or two sentences."
 QUESTION = "In one sentence, what does an AIDX message carry?"
@@ -19,12 +18,16 @@ QUESTION = "In one sentence, what does an AIDX message carry?"
 def ask(client: ModelClient, question: str = QUESTION) -> ModelResponse:
     """Step 1: one request, one response. Return the whole ModelResponse, not just the text:
     the stop reason and the usage are part of the answer."""
-    raise LabNotDone("Lecture 1.2: implement ask(). Hints: labs/s01/README.md, lecture 1.2.")
+    req = ChatRequest(model=client.model, system=SYSTEM, messages=[Message.user(question)], max_tokens=200)
+    return client.complete(req)
 
 
 def stream_answer(client: ModelClient, question: str, on_text: Callable[[str], None]) -> ModelResponse:
     """Step 2: stream. Call on_text for every chunk as it arrives; return the final response."""
-    raise LabNotDone("Lecture 1.2: implement stream_answer(). Hints: labs/s01/README.md, lecture 1.2.")
+    req = ChatRequest(model=client.model, system=SYSTEM, messages=[Message.user(question)], max_tokens=200)
+    for chunk in client.stream(req):
+        on_text(chunk)
+    return client.last_response
 
 
 def call_with_retry(client: ModelClient, req: ChatRequest, max_attempts: int = 3,
@@ -36,7 +39,14 @@ def call_with_retry(client: ModelClient, req: ChatRequest, max_attempts: int = 3
     - not retryable (400, 401, budget): raise immediately; retrying a bad request only costs time.
     Section 15 adds jitter, retry budgets and circuit breakers.
     """
-    raise LabNotDone("Lecture 1.2: implement call_with_retry(). Hints: labs/s01/README.md, lecture 1.2.")
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return client.complete(req)
+        except ModelError as e:
+            if not e.retryable or attempt == max_attempts:
+                raise
+            sleep(e.retry_after if e.retry_after is not None else base_delay_s * 2 ** (attempt - 1))
+    raise AssertionError("unreachable")
 
 
 def main() -> None:

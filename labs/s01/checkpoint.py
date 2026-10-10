@@ -18,7 +18,6 @@ from skyops.model.types import ModelResponse
 from .costing import CostReport, report
 from .extract import ExtractionFailed, extract_notice
 from .notices import NOTICES, DisruptionNotice
-from skyops.model.errors import LabNotDone
 
 
 @dataclass
@@ -29,7 +28,27 @@ class BatchResult:
 
 
 def extract_batch(client: ModelClient, texts: list[str], price: Price) -> BatchResult:
-    raise LabNotDone("Lecture 1.8: implement extract_batch(). Hints: labs/s01/README.md, lecture 1.8.")
+    responses: list[ModelResponse] = []
+    original = client.complete
+
+    def counted(req):                       # every call is priced, including repairs
+        r = original(req)
+        responses.append(r)
+        return r
+
+    client.complete = counted
+    try:
+        out = BatchResult(notices=[])
+        for i, text in enumerate(texts):
+            try:
+                out.notices.append(extract_notice(client, text))
+            except ExtractionFailed as e:
+                out.notices.append(None)
+                out.failures[i] = str(e)
+        out.cost = report(responses, price)
+        return out
+    finally:
+        client.complete = original
 
 
 def main() -> None:

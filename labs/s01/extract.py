@@ -15,7 +15,6 @@ from skyops.model.client import ModelClient, get_client
 from skyops.model.types import ChatRequest, Message, TextBlock
 
 from .notices import NOTICES, SYSTEM, DisruptionNotice
-from skyops.model.errors import LabNotDone
 
 
 class ExtractionFailed(Exception):
@@ -33,7 +32,24 @@ def extract_notice(client: ModelClient, text: str, max_repairs: int = 1) -> Disr
     4. If validation fails, send the error back once and ask for a corrected object.
     5. Still invalid: raise ExtractionFailed. Never pass unvalidated data downstream.
     """
-    raise LabNotDone("Lecture 1.3: implement extract_notice(). Hints: labs/s01/README.md, lecture 1.3.")
+    schema = DisruptionNotice.model_json_schema()
+    messages = [Message.user(f"Extract the notice:\n\n{text}")]
+    for attempt in range(1, max_repairs + 2):
+        resp = client.complete(ChatRequest(model=client.model, system=SYSTEM, messages=messages,
+                                           max_tokens=300, output_schema=schema, schema_name="disruption_notice"))
+        if resp.stop_reason in ("max_tokens", "refusal", "context_exceeded"):
+            raise ExtractionFailed(f"output not usable: stop reason {resp.stop_reason}", attempt)
+        try:
+            return DisruptionNotice.model_validate(json.loads(resp.text))
+        except (json.JSONDecodeError, ValidationError) as e:
+            problem = str(e).splitlines()[0] if isinstance(e, json.JSONDecodeError) else \
+                "; ".join(f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors(include_url=False))
+            if attempt > max_repairs:
+                raise ExtractionFailed(f"invalid after {attempt} attempts: {problem}", attempt) from e
+            messages += [resp.as_message(),
+                         Message(role="user", content=[TextBlock(text=f"That object is invalid: {problem}. "
+                                                                 "Return a corrected JSON object only.")])]
+    raise AssertionError("unreachable")
 
 
 def main(argv: list[str] | None = None) -> None:
