@@ -446,6 +446,108 @@ def s08() -> dict:
     }
 
 
+def s09() -> dict:
+    """Section 9: retrieval over the synthetic operating procedures. All offline and deterministic; the only
+    model turns (9.7) are a scripted replay."""
+    import logging
+    logging.disable(logging.CRITICAL)
+    from labs.s09 import (agentic_demo, chunk_demo, eval_demo, freshness_demo, leak_demo, procedures_demo,
+                          search_demo, store_sizing, when_to_retrieve)
+    from skyops.retrieval import indexing as IX
+    from skyops.retrieval.chunking import structure_chunks
+    from skyops.retrieval.access import DIRECTORY
+    from skyops.retrieval.docs import load_corpus
+    from skyops.retrieval.evals import load_queries
+    from skyops.retrieval.search import RRF_K, Retriever, RetrievalPrice
+    from skyops.retrieval.tool import MAX_RESULT_TOKENS, SearchProceduresArgs
+    from skyops.retrieval.agentic import RetrievalBudget
+    from skyops.tools.catalog import VOUCHER_LIMIT_EUR
+    import inspect
+    import re as _re
+    import warnings
+    warnings.simplefilter("ignore")            # the loose-budget replay (9.7 break it) warns per changed request
+    docs = load_corpus()
+    w = when_to_retrieve.figures()
+    c = chunk_demo.figures()
+    ab = chunk_demo.prefix_ablation()
+    lk = leak_demo.figures()
+    nv, cd, st = freshness_demo.naive(), freshness_demo.cdc(), freshness_demo.cdc(fail=True)
+    price = RetrievalPrice.load()
+    r = Retriever(IX.build())
+    search = {"k": search_demo.K, "rrf_k": RRF_K, "candidates": inspect.signature(Retriever.search).parameters["candidates"].default,
+              "rerank_per_1000_usd": price.rerank_per_1000_searches, "embed_per_mtok_usd": price.embed_per_mtok,
+              "context_per_mtok_usd": price.context_per_mtok}
+    for e in search_demo.table(r):
+        n = e.name.replace("+", "_")
+        search[f"{n}_recall_share"] = round(e.recall, 2)
+        search[f"{n}_mrr"] = round(e.mrr, 2)
+        search[f"{n}_ctx_tokens"] = round(e.context_tokens)
+        search[f"{n}_per_1000_usd"] = round(e.usd_per_1000, 2)
+    search["rerank_cost_ratio"] = round(search["hybrid_rerank_per_1000_usd"] / search["hybrid_per_1000_usd"])
+    ss = search_demo.score_sum(r)
+    search["sum_recall_share"], search["sum_mrr"] = round(ss.recall, 2), round(ss.mrr, 2)
+    qs = load_queries()
+    ev = {"k": eval_demo.K, "queries": len(qs), "one_query_share": round(1 / len(qs), 3),
+          "single_label": sum(len(q.relevant) == 1 for q in qs)}
+    for strat, reps in eval_demo.reports().items():
+        for e in reps:
+            n = f"{strat}_{e.name.replace('+', '_')}"
+            ev[f"{n}_recall_share"] = round(e.recall, 2)
+            ev[f"{n}_mrr"] = round(e.mrr, 2)
+            ev[f"{n}_misses"] = len(e.misses)
+    for strat, e in eval_demo.loose().items():
+        ev[f"loose_{strat}_recall_share"], ev[f"loose_{strat}_mrr"] = round(e.recall, 2), round(e.mrr, 2)
+    ag = {}
+    for name in agentic_demo.SCENARIOS:
+        res, bs = agentic_demo.run(name, retriever=r)
+        sm = res.trace.summary()
+        ag[name] = {"proposed": len(bs.log), "searches": bs.searches, "refused": bs.refused,
+                    "evidence_tokens": bs.result_tokens, "model_calls": sm["model_calls"],
+                    "total_tokens": sm["total_tokens"], "per_1000_runs_usd": round(sm["cost_per_1000_runs_usd"], 2)}
+    loose = RetrievalBudget(max_searches=10, max_no_progress=5, max_result_tokens=agentic_demo.BUDGET.max_result_tokens)
+    _, bl = agentic_demo.run("runaway", retriever=r, budget=loose)
+    ag["loose"] = {"max_searches": loose.max_searches, "max_no_progress": loose.max_no_progress,
+                   "searches": bl.searches, "refused": bl.refused, "evidence_tokens": bl.result_tokens}
+    ag["budget"] = {"max_searches": agentic_demo.BUDGET.max_searches, "max_no_progress": agentic_demo.BUDGET.max_no_progress,
+                    "max_result_tokens": agentic_demo.BUDGET.max_result_tokens}
+    sz = {f"{'abc'[i]}": f for i, f in enumerate(store_sizing.figures())}
+    pd = procedures_demo.run()
+    return {
+        "corpus": {"versions": len(docs), "tenants": len({d.meta.tenant for d in docs}), "agent_docs": w["docs"],
+                   "restricted": sum(d.meta.classification == "restricted" for d in docs),
+                   "roles": len({ro for d in docs for ro in d.meta.roles})},
+        "decide": {k: v for k, v in w.items() if k != "docs"},
+        "chunking": {"naive_size": chunk_demo.NAIVE_SIZE, "naive_chunks": c["naive"]["chunks"], "naive_cut": c["naive"]["cut"],
+                     "naive_orphan": c["naive"]["orphan"], "structure_chunks": c["structure"]["chunks"],
+                     "structure_failures": c["structure"]["cut"] + c["structure"]["orphan"],
+                     "max_tokens": inspect.signature(structure_chunks).parameters["max_tokens"].default,
+                     "dim": c["index"]["dim"], "store_chunks": c["index"]["chunks"],
+                     "noprefix_recall_share": round(ab["without_recall"], 2), "noprefix_mrr": round(ab["without_mrr"], 2),
+                     "prefix_recall_share": round(ab["with_recall"], 2), "prefix_mrr": round(ab["with_mrr"], 2)},
+        "search": search,
+        "leak": {"pre": lk["pre"], "post": lk["post"], "zz_df": lk["zz_df"], "shared_df": lk["shared_df"]},
+        "fresh": {"poll_s": IX.POLL_S, "window_s": IX.FRESHNESS_WINDOW_S, "window_min": IX.FRESHNESS_WINDOW_S // 60,
+                  "revocation_s": cd["revocation_s"], "nights": nv["nights"], "naive_rank": nv["rank"],
+                  "withdrawn_time": IX.WITHDRAWN_AT.strftime("%H:%M"), "gone_time": cd["gone_at"].strftime("%H:%M"),
+                  "stale_time": st["stale_at"].strftime("%H:%M"), "stale_lag_s": st["lags"][st["stale_at"].strftime("%H:%M:%S")],
+                  "voucher_old_eur": int(_re.search(r"up to (\d+) EUR per room", (ROOT / "data/procedures/zz/SOP-GND-009_v2.0.md").read_text()).group(1)),
+                  "voucher_new_eur": VOUCHER_LIMIT_EUR, "zombies": len(nv["zombies"])},
+        "evals": ev,
+        "agentic": ag,
+        "sizing": {"a_chunks": sz["a"]["chunks"], "a_kib": sz["a"]["float32_kib"], "a_dim": sz["a"]["dim"],
+                   "b_chunks": sz["b"]["chunks"], "b_dim": sz["b"]["dim"], "b_tenants": sz["b"]["tenants"],
+                   "b_gib": sz["b"]["float32_gib"], "b_half_gib": sz["b"]["half_gib"],
+                   "c_chunks": sz["c"]["chunks"], "c_dim": sz["c"]["dim"], "c_gib": sz["c"]["float32_gib"],
+                   "pgvector_index_dims": 2000, "halfvec_index_dims": 4000},
+        "tool": {"default_k": SearchProceduresArgs.model_fields["k"].default, "max_k": next(m.le for m in SearchProceduresArgs.model_fields["k"].metadata if hasattr(m, "le")),
+                 "max_result_tokens": MAX_RESULT_TOKENS, "revoked_cases": count_tests("fitness/s09/test_s09.py::test_l99_revoked_policy_is_never_returned"),
+                 "mcp_dm_top": pd["dm-deepa"]["items"][0]["doc_id"], "directory": len(DIRECTORY)},
+        "meta": {"s09_fitness": count_tests("fitness/s09"), "s09_hidden": count_tests("grading/s09"),
+                 "s09_start_failing": count_tests("fitness/s09") - 1,
+                 "all_at_s09": count_tests("tests") + count_tests("fitness")},
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
@@ -468,6 +570,8 @@ def main() -> int:
         data["s07"] = s07()
     if (ROOT / "labs/s08").exists():
         data["s08"] = s08()
+    if (ROOT / "labs/s09").exists():
+        data["s09"] = s09()
     bad = False
     for name, d in data.items():
         text = json.dumps(d, indent=1, sort_keys=True)

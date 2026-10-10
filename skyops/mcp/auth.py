@@ -108,11 +108,13 @@ def verifier_from_env(audience: str = RESOURCE, *, dev: bool = False) -> JwtVeri
     return JwtVerifier(audience=audience)
 
 
-def required_scopes(method: str, name: str | None, baseline: list[str] = BASELINE) -> list[str]:
-    """Scopes an MCP request needs, from its method and Mcp-Name. Discovery and lists need the server's baseline."""
+def required_scopes(method: str, name: str | None, baseline: list[str] = BASELINE,
+                    tool_scopes: dict[str, list[str]] | None = None) -> list[str]:
+    """Scopes an MCP request needs, from its method and Mcp-Name. Discovery and lists need the server's baseline.
+    `tool_scopes` lets another server (Section 9's procedures server) bring its own table; default TOOL_SCOPES."""
     from fnmatch import fnmatch
     if method == "tools/call" and name:
-        return TOOL_SCOPES.get(name, ["admin"])            # unknown tool: nobody gets it by accident
+        return (tool_scopes or TOOL_SCOPES).get(name, ["admin"])   # unknown tool: nobody gets it by accident
     if method == "resources/read" and name:
         return next((s for p, s in RESOURCE_SCOPES.items() if fnmatch(name, p)), ["admin"])
     return baseline

@@ -1,7 +1,7 @@
 PY ?= python3
 export PYTHONPATH := .
 
-.PHONY: setup test fitness quickwin labs-s01 labs-s04 labs-s06 labs-s07 labs-s08 mcp-lock deploy-local grade dist synthetic-report fixtures
+.PHONY: setup test fitness quickwin labs-s01 labs-s04 labs-s06 labs-s07 labs-s08 labs-s09 mcp-lock deploy-local grade dist synthetic-report fixtures
 
 setup:            ## install pinned dependencies
 	$(PY) -m pip install -r requirements.lock
@@ -29,6 +29,9 @@ labs-s07:         ## Section 7: first server, agent over MCP, gateway, contract 
 
 labs-s08:         ## Section 8: token budget, state map, compaction, scratchpads, memory, Incident 08, the shift
 	$(PY) -m labs.s08.budget && $(PY) -m labs.s08.state_map && $(PY) -m labs.s08.compaction_demo && $(PY) -m labs.s08.scratchpad && $(PY) -m labs.s08.memory_demo && $(PY) -m labs.s08.incident && $(PY) -m labs.s08.shift
+
+labs-s09:         ## Section 9: chunking, search, leaks, freshness, evals, bounded search, the procedures tool
+	$(PY) -m labs.s09.when_to_retrieve && $(PY) -m labs.s09.chunk_demo && $(PY) -m labs.s09.search_demo && $(PY) -m labs.s09.leak_demo && $(PY) -m labs.s09.freshness_demo && $(PY) -m labs.s09.eval_demo && $(PY) -m labs.s09.agentic_demo && $(PY) -m labs.s09.store_sizing && $(PY) -m labs.s09.procedures_demo
 
 mcp-lock:         ## after a deliberate version bump: record the released tool listing
 	$(PY) -m skyops.mcp.versioning --write

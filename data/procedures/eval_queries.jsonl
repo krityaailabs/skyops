@@ -1,0 +1,37 @@
+{"id": "q01", "query": "How much is the meal voucher after a two hour delay?", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-014#when-care-applies", "evidence": "15 EUR per passenger"}]}
+{"id": "q02", "query": "hotel voucher limit without approval", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-014#hotel-accommodation", "evidence": "above 150 EUR"}, {"label": "SOP-GND-014#when-care-applies", "evidence": "up to 150 EUR"}]}
+{"id": "q03", "query": "What does WCHC mean?", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-021#assistance-codes", "evidence": "WCHC | Cannot walk"}]}
+{"id": "q04", "query": "passenger cannot climb the steps to the aircraft", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-021#assistance-codes", "evidence": "cannot climb steps"}]}
+{"id": "q05", "query": "how long can a wheelchair passenger wait at the gate without a check", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-021#during-delays", "evidence": "30 minutes"}]}
+{"id": "q06", "query": "power bank of 120 Wh in a checked bag", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-031#spare-batteries-and-power-banks", "evidence": "Over 100 Wh up to 160 Wh"}]}
+{"id": "q07", "query": "powered wheelchair with a removable battery", "tenant": "zz", "role": "ground_staff", "relevant": [{"label": "SOP-GND-031#powered-wheelchairs", "evidence": "travels in the cabin"}]}
+{"id": "q08", "query": "can a four year old travel as an unaccompanied minor", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-030#age-bands", "evidence": "Under 5"}]}
+{"id": "q09", "query": "child travelling alone and the flight is cancelled", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-030#delays-and-cancellations", "evidence": "never booked into a hotel alone"}]}
+{"id": "q10", "query": "who signs the handover form for a child", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-030#handover-at-departure", "evidence": "escort signs the form"}]}
+{"id": "q11", "query": "changing the gate shortly before boarding", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-022#timing", "evidence": "30 minutes before boarding"}]}
+{"id": "q12", "query": "should I send a second message about the same gate change", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-022#messages", "evidence": "Do not send a second notification"}]}
+{"id": "q13", "query": "rebooking order when seats are short", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-OPS-040#rebooking-priority", "evidence": "Unaccompanied minors and passengers with reduced mobility"}]}
+{"id": "q14", "query": "who decides to cancel a flight", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-OPS-040#deciding-to-cancel", "evidence": "Operations control decides"}]}
+{"id": "q15", "query": "deadline for the report after a cancellation", "tenant": "zz", "role": "duty_manager", "relevant": [{"label": "SOP-OPS-040#after-the-event", "evidence": "within 24 hours"}]}
+{"id": "q16", "query": "passengers kept on board after a diversion", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-OPS-044#care-at-the-alternate-airport", "evidence": "more than 2 hours"}]}
+{"id": "q17", "query": "bag arrived damaged, how long to claim", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-018#deadlines-for-written-claims", "evidence": "Damaged bag | 7 days"}]}
+{"id": "q18", "query": "when is a delayed bag considered lost", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-018#deadlines-for-written-claims", "evidence": "treated as lost"}]}
+{"id": "q19", "query": "can the passenger buy toiletries while the suitcase is missing", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-018#essentials", "evidence": "receipts are needed"}]}
+{"id": "q20", "query": "accessible hotel room for a wheelchair user", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-021#hotel-stays", "evidence": "accessible room"}]}
+{"id": "q21", "query": "partner flights if there is no ZZ flight within 12 hours", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-014#rebooking", "evidence": "within 12 hours"}]}
+{"id": "q22", "query": "can I give cash instead of a meal voucher", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-014#meal-vouchers", "evidence": "Do not issue cash"}]}
+{"id": "q23", "query": "where do I record hotel bookings for a disruption", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-014#records", "evidence": "disruption reference"}]}
+{"id": "q24", "query": "goodwill authority limit for a duty manager", "tenant": "zz", "role": "duty_manager", "relevant": [{"label": "MGR-007#authority-limits", "evidence": "Up to 400 EUR"}]}
+{"id": "q25", "query": "crew will go past the duty limit, can the commander extend", "tenant": "zz", "role": "duty_manager", "relevant": [{"label": "CRW-012#extensions", "evidence": "up to 2 hours"}]}
+{"id": "q26", "query": "unattended bag found near the gate", "tenant": "zz", "role": "security", "relevant": [{"label": "SEC-003#first-response", "evidence": "Code Amber"}]}
+{"id": "q27", "query": "meal voucher for a YY Connect delay", "tenant": "yy", "role": "agent", "relevant": [{"label": "YY-GND-002#care-levels", "evidence": "12 EUR per passenger"}]}
+{"id": "q28", "query": "hotel approval for YY Connect passengers", "tenant": "yy", "role": "agent", "relevant": [{"label": "YY-GND-002#hotel-accommodation", "evidence": "above 120 EUR"}]}
+{"id": "q29", "query": "how early must assistance be requested", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-021#before-boarding", "evidence": "90 minutes before departure"}]}
+{"id": "q30", "query": "pick-up point for the hotel transport", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-014#hotel-accommodation", "evidence": "pick-up point"}]}
+{"id": "q31", "query": "flight landed at another airport, who pays for meals", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-OPS-044#care-at-the-alternate-airport", "evidence": "paid by ZZ"}]}
+{"id": "q32", "query": "wheelchiar passenger left waiting at the gate", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-021#during-delays", "evidence": "30 minutes"}]}
+{"id": "q33", "query": "cancelation report deadline", "tenant": "zz", "role": "duty_manager", "relevant": [{"label": "SOP-OPS-040#after-the-event", "evidence": "within 24 hours"}]}
+{"id": "q34", "query": "unacompanied minors age limits", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-PAX-030#age-bands", "evidence": "Under 5"}]}
+{"id": "q35", "query": "lithium powerbanks over 160Wh", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-031#spare-batteries-and-power-banks", "evidence": "Over 160 Wh"}]}
+{"id": "q36", "query": "acommodation steps when the departure is after 22:00", "tenant": "zz", "role": "agent", "relevant": [{"label": "SOP-GND-014#hotel-accommodation", "evidence": "past 22:00 local"}]}
+{"id": "q37", "query": "diverted flight onward travel options", "tenant": "zz", "role": "duty_manager", "relevant": [{"label": "SOP-OPS-044#onward-travel", "evidence": "replacement aircraft"}]}

@@ -37,6 +37,12 @@ STUBS = {
     "skyops/context/window.py": {"pinned_missing": "8.7", "fit_to_window": "8.7"},
     "skyops/context/compaction.py": {"compact": "8.8"},
     "skyops/context/retention.py": {"retention_problems": "8.8"},
+    # Section 9: retrieval as a governed tool
+    "skyops/retrieval/chunking.py": {"structure_chunks": "9.2"},
+    "skyops/retrieval/search.py": {"matches": "9.3", "rrf_fuse": "9.3"},
+    "skyops/retrieval/evals.py": {"recall_at_k": "9.6", "reciprocal_rank": "9.6"},
+    "skyops/retrieval/access.py": {"can_read": "9.3"},
+    "skyops/retrieval/tool.py": {"search_procedures": "9.9"},
 }
 IMPORT = "from skyops.model.errors import LabNotDone\n"
 

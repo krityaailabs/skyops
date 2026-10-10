@@ -1,0 +1,14 @@
+# Retrieval cost PARAMETERS (Section 9). Same rule as prices.toml: never a price in code or narration.
+#
+# The "example" profile is the course's teaching parameters, NOT a quote from any provider. Context tokens
+# (the chunks a search hands the model) are priced with the input price of the profile in prices.toml.
+# For real numbers, add a profile from your embedding and reranking providers' pricing pages, with the
+# date you checked, and pass its name to RetrievalPrice.load().
+
+[example]
+embed_per_mtok = 0.02                 # USD per million tokens embedded (queries at search time, chunks at indexing)
+rerank_per_1000_searches = 2.00       # USD per 1,000 rerank calls (one call scores up to rerank_docs_per_search)
+rerank_docs_per_search = 100
+model_price_profile = "example"       # profile in prices.toml used for the context tokens
+source = "Kritya AI Labs course example parameters (not a provider price)"
+verified = "n/a"

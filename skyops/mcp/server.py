@@ -122,8 +122,10 @@ class ScopeGuard:
     The scopes it names are the server's baseline plus the operation's own, so one challenge is enough.
     """
 
-    def __init__(self, app, verifier: A.JwtVerifier, metadata_url: str, baseline: list[str] = A.BASELINE):
+    def __init__(self, app, verifier: A.JwtVerifier, metadata_url: str, baseline: list[str] = A.BASELINE,
+                 tool_scopes: dict[str, list[str]] | None = None):
         self.app, self.verifier, self.metadata_url, self.baseline = app, verifier, metadata_url, baseline
+        self.tool_scopes = tool_scopes
         self.denied: list[dict[str, Any]] = []
 
     async def __call__(self, scope, receive, send):
@@ -139,7 +141,8 @@ class ScopeGuard:
             name = h.get("mcp-name")
             if name and name.startswith("=?base64?") and name.endswith("?="):
                 name = base64.b64decode(name[9:-2]).decode()
-            need = list(dict.fromkeys([*self.baseline, *A.required_scopes(h.get("mcp-method", ""), name, self.baseline)]))
+            need = list(dict.fromkeys([*self.baseline, *A.required_scopes(h.get("mcp-method", ""), name, self.baseline,
+                                                                       self.tool_scopes)]))
             if not set(need) <= set(tok.scopes):
                 self.denied.append({"sub": tok.subject, "method": h.get("mcp-method"), "name": name, "need": need})
                 challenge = (f'Bearer error="insufficient_scope", scope="{" ".join(need)}", '
@@ -155,7 +158,8 @@ ALLOWED_HOSTS = ["mcp.skyops.example", "crew.skyops.example", "127.0.0.1:*", "lo
 
 
 def http_app(srv: MCPServer, *, auth: bool = False, hosts: list[str] | None = None, resource: str = A.RESOURCE,
-             baseline: list[str] | None = None, verifier: A.JwtVerifier | None = None):
+             baseline: list[str] | None = None, verifier: A.JwtVerifier | None = None,
+             tool_scopes: dict[str, list[str]] | None = None):
     """The Streamable HTTP app for a server, with the scope guard in front when auth is on.
     Host checking (DNS-rebinding protection, lecture 6.6) stays on: only the names we serve are accepted.
     No browser origins are allowed: SkyOps hosts are services, not web pages."""
@@ -166,6 +170,6 @@ def http_app(srv: MCPServer, *, auth: bool = False, hosts: list[str] | None = No
         return app
     baseline = baseline or (["crew:read"] if resource == A.CREW_RESOURCE else A.BASELINE)
     guard = ScopeGuard(app, verifier or A.JwtVerifier(audience=resource),
-                       resource.rsplit("/mcp", 1)[0] + "/.well-known/oauth-protected-resource/mcp", baseline)
+                       resource.rsplit("/mcp", 1)[0] + "/.well-known/oauth-protected-resource/mcp", baseline, tool_scopes)
     guard.router = app.router            # keep lifespan reachable for in-process tests
     return guard
