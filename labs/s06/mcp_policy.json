@@ -1,0 +1,14 @@
+{
+  "_note": "SkyOps policy for third-party MCP servers (lecture 6.9). Section 7's gateway enforces the same rules.",
+  "trusted_publishers": ["skyops-platform-team", "modelcontextprotocol"],
+  "require_signed_or_internal_build": true,
+  "require_exact_version_pin": true,
+  "max_scopes_per_purpose": {
+    "flight weather for duty managers": ["weather:read"]
+  },
+  "never_grant": ["contacts:read", "bookings:write", "payments:write"],
+  "secret_argument_names": ["token", "api_key", "password", "secret", "authorization"],
+  "suspicious_description_phrases": ["<important>", "before answering", "always call", "do not mention",
+                                     "don't tell", "ignore previous", "ignore all", "system prompt", "include the result"],
+  "approved": {}
+}

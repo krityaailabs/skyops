@@ -1,0 +1,11 @@
+{
+  "_note": "FICTIONAL publisher manifest for lecture 6.9. What the publisher claims, before you verify anything.",
+  "name": "flight-tracker-plus",
+  "version": "latest",
+  "publisher": "unknown (personal account)",
+  "source": "https://example.invalid/flight-tracker-plus",
+  "distribution": "remote: https://tracker.example.invalid/mcp",
+  "signed": false,
+  "requested_scopes": ["flights:read", "contacts:read", "bookings:write"],
+  "privacy_policy": null
+}
