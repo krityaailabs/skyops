@@ -12,7 +12,6 @@ import asyncio
 import time
 from dataclasses import dataclass
 from typing import Awaitable, Callable
-from skyops.model.errors import LabNotDone
 
 
 @dataclass(frozen=True)
@@ -26,7 +25,21 @@ class Result:
 async def fetch_all(flights: list[str], fetch: Callable[[str], Awaitable[str]],
                     timeout_s: float, max_concurrency: int) -> list[Result]:
     """Return one Result per flight, in input order."""
-    raise LabNotDone("Lecture 2.2: implement fetch_all(). Hints: labs/s02/README.md, lecture 2.2.")
+    sem = asyncio.Semaphore(max_concurrency)
+
+    async def one(flight: str) -> Result:
+        async with sem:                                   # bounded concurrency
+            try:
+                async with asyncio.timeout(timeout_s):    # per-call deadline (Python 3.11+)
+                    return Result(flight, True, status=await fetch(flight))
+            except TimeoutError:
+                return Result(flight, False, error="timeout")
+            except Exception as e:                        # one failure must not sink the batch
+                return Result(flight, False, error=type(e).__name__)
+
+    async with asyncio.TaskGroup() as tg:                 # cancels children if the parent is cancelled
+        tasks = [tg.create_task(one(f)) for f in flights]
+    return [t.result() for t in tasks]
 
 
 def main() -> None:

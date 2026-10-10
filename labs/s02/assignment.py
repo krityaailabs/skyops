@@ -20,7 +20,6 @@ from pydantic import ValidationError
 from skyops.sim.ops_api import BASE_URL
 
 from .contracts import FlightStatus
-from skyops.model.errors import LabNotDone
 
 
 class FlightNotFound(Exception): ...
@@ -36,7 +35,32 @@ class AsyncFlightOpsClient:
         self.attempts, self.sleep = attempts, sleep
 
     async def get_status(self, flight: str, date: str) -> FlightStatus:
-        raise LabNotDone("Lecture 2.7: implement get_status(). Hints: labs/s02/README.md, lecture 2.7.")
+        for attempt in range(1, self.attempts + 1):
+            last = attempt == self.attempts
+            try:
+                r = await self.http.get(f"{BASE_URL}/flights/{flight}/{date}")
+            except httpx.TimeoutException:
+                if last:
+                    raise OpsUnavailable(f"{flight}: timed out {attempt} times")
+                await self.sleep(2 ** (attempt - 1))
+                continue
+            if r.status_code == 200:
+                try:
+                    return FlightStatus.model_validate(r.json())
+                except (ValidationError, ValueError) as e:
+                    raise OpsDataError(f"{flight}: response breaks the contract") from e
+            if r.status_code == 404:
+                raise FlightNotFound(flight)
+            if r.status_code in (429, 503):
+                if last:
+                    raise OpsUnavailable(f"{flight}: HTTP {r.status_code} after {attempt} attempts")
+                ra = r.headers.get("Retry-After")
+                await self.sleep(float(ra) if ra else 2 ** (attempt - 1))
+                continue
+            if r.status_code >= 500:
+                raise OpsUnavailable(f"{flight}: HTTP {r.status_code}")
+            raise OpsRejected(f"{flight}: HTTP {r.status_code}")
+        raise AssertionError("unreachable")
 
     async def aclose(self) -> None:
         await self.http.aclose()

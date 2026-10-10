@@ -17,7 +17,6 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
-from skyops.model.errors import LabNotDone
 
 ToolRunner = Callable[[str, dict[str, Any]], tuple[bool, str]]
 
@@ -47,4 +46,17 @@ class ToolTape:
         p.write_text("".join(json.dumps(e, sort_keys=True) + "\n" for e in self.entries), encoding="utf-8")
 
     def wrap(self, real: ToolRunner | None) -> ToolRunner:
-        raise LabNotDone("Lecture 2.5: implement wrap(). Hints: labs/s02/README.md, lecture 2.5.")
+        def runner(name: str, args: dict[str, Any]) -> tuple[bool, str]:
+            if self.mode == "record":
+                ok, output = real(name, args)
+                self.entries.append({"name": name, "args": args, "ok": ok, "output": output})
+                return ok, output
+            if self.position >= len(self.entries):
+                raise ToolReplayMiss(f"tool call {self.position + 1} ({name}) was never recorded")
+            e = self.entries[self.position]
+            self.position += 1
+            if (e["name"], e["args"]) != (name, args):
+                raise ToolReplayMiss(f"tool call {self.position}: recorded {e['name']}({e['args']}), "
+                                     f"got {name}({args})")
+            return e["ok"], e["output"]
+        return runner
