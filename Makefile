@@ -1,7 +1,7 @@
 PY ?= python3
 export PYTHONPATH := .
 
-.PHONY: setup test fitness quickwin labs-s01 labs-s04 labs-s06 labs-s07 mcp-lock deploy-local dist synthetic-report fixtures
+.PHONY: setup test fitness quickwin labs-s01 labs-s04 labs-s06 labs-s07 labs-s08 mcp-lock deploy-local grade dist synthetic-report fixtures
 
 setup:            ## install pinned dependencies
 	$(PY) -m pip install -r requirements.lock
@@ -27,11 +27,17 @@ labs-s06:         ## Section 6 (read only): the MCP wire inspector, gateway rule
 labs-s07:         ## Section 7: first server, agent over MCP, gateway, contract lock
 	$(PY) -m labs.s07.first_server && $(PY) -m labs.s07.agent_over_mcp && $(PY) -m labs.s07.gateway_demo && $(PY) -m skyops.mcp.versioning
 
+labs-s08:         ## Section 8: token budget, state map, compaction, scratchpads, memory, Incident 08, the shift
+	$(PY) -m labs.s08.budget && $(PY) -m labs.s08.state_map && $(PY) -m labs.s08.compaction_demo && $(PY) -m labs.s08.scratchpad && $(PY) -m labs.s08.memory_demo && $(PY) -m labs.s08.incident && $(PY) -m labs.s08.shift
+
 mcp-lock:         ## after a deliberate version bump: record the released tool listing
 	$(PY) -m skyops.mcp.versioning --write
 
 deploy-local:     ## lecture 7.10: HTTPS server + the host's smoke test (Linux, macOS, WSL)
 	bash labs/s07/deploy_local.sh
+
+grade:            ## instructor only: hidden checks (not in learner archives)
+	$(PY) -m pytest grading
 
 dist:             ## learner archive without grading/
 	rm -rf dist && mkdir -p dist && git archive --format=tar HEAD | tar -x -C dist --exclude=grading && test ! -e dist/grading && echo "dist/ built without grading/"

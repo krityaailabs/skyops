@@ -34,6 +34,9 @@ STUBS = {
     "skyops/mcp/client.py": {"map_call_result": "7.5"},
     "skyops/mcp/versioning.py": {"check_lock": "7.7"},
     "skyops/mcp/gateway.py": {"decide": "7.9"},
+    "skyops/context/window.py": {"pinned_missing": "8.7", "fit_to_window": "8.7"},
+    "skyops/context/compaction.py": {"compact": "8.8"},
+    "skyops/context/retention.py": {"retention_problems": "8.8"},
 }
 IMPORT = "from skyops.model.errors import LabNotDone\n"
 

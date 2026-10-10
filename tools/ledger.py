@@ -321,6 +321,131 @@ def s07() -> dict:
     }
 
 
+def s08() -> dict:
+    """Section 8: the context window as a budget, where state lives, compaction, typed scratchpads, memory
+    governance, and Incident 08. Token counts are the context layer's ESTIMATES (skyops/context/tokens.py)."""
+    import datetime as _dt
+    from labs.s08 import budget, compaction_demo, incident, memory_demo, scratchpad, shift
+    from skyops.context.budget import account
+    from skyops.context.memory import RETENTION_DAYS
+    from skyops.context.pinned import SAFETY_RULES
+    from skyops.context.retention import retention_problems
+    from skyops.context.state import STATE_MAP
+    from skyops.context.tokens import chars4, count_tokens
+    from collections import Counter
+    import re as _re
+    import shutil
+    import tempfile
+    from skyops.model.types import ToolResultBlock, ToolUseBlock
+
+    def fitness_failures(break_compact: bool = False) -> int:
+        """Section 8 fitness failures in a copy of this tree: with the s08 lab functions stubbed (s08-start),
+        or with compact() ignoring the previous summary (lecture 8.8's Break it)."""
+        from tools.make_stubs import STUBS
+        files = [f for f, fs in STUBS.items() if any(v.startswith("8.") for v in fs.values())]
+        with tempfile.TemporaryDirectory() as tmp:
+            dst = Path(tmp) / "repo"
+            shutil.copytree(ROOT, dst, ignore=shutil.ignore_patterns(".git", "__pycache__", "dist"))
+            if break_compact:
+                f = dst / "skyops/context/compaction.py"
+                src = f.read_text()
+                old = "    lines = [l for l in previous_summary.splitlines() if l.strip()]\n"
+                assert old in src
+                f.write_text(src.replace(old, "    lines = []\n"))
+            else:
+                subprocess.run([sys.executable, "tools/make_stubs.py", *files], cwd=dst, capture_output=True, check=True)
+            out = subprocess.run([sys.executable, "-m", "pytest", "fitness/s08", "--tb=no", "-rf", "-p", "no:cacheprovider"],
+                                 cwd=dst, capture_output=True, text=True, env={**__import__("os").environ, "PYTHONPATH": "."})
+            return sum(1 for line in out.stdout.splitlines() if line.startswith("FAILED "))
+
+    sample = "ZZ214 to Singapore is delayed from 19:40 to 20:15, gate B7."
+    r, ctx = budget.run()
+    ev = ctx.events
+    first, last = ev[0]["tokens"], ev[-1]["tokens"]
+    cuts = budget.cut_options(ctx)
+    homes = Counter(h for _, h, _ in STATE_MAP)
+    sh, full, c, compacted, naive = compaction_demo.requests()
+    b0, b1 = account(full), account(compacted)
+    free, fctx = scratchpad.run("free")
+    typed, tctx = scratchpad.run("typed")
+    store, rows = memory_demo.run()
+    day0 = memory_demo.DAY0
+    later = day0 + _dt.timedelta(days=15)
+    v1 = incident.run(fixed=False)
+    v1s = incident.summary(v1)
+    fx = shift.run()
+    fxs = incident.summary(fx)
+    firstreq = v1.ctx.sent[v1s["first_missing"] - 1]
+    uncut = firstreq.model_copy(update={"system": v1.ctx.system_prompt()})   # v1's system prompt never changes
+    notify = {b.id: b.input["flight_number"] for m in v1.transcript for b in m.content
+              if isinstance(b, ToolUseBlock) and b.name == "notify_passengers"}
+    canary_recipients = sum(json.loads(b.content).get("recipients", 0) for m in v1.transcript for b in m.content
+                            if isinstance(b, ToolResultBlock) and notify.get(b.tool_use_id) == "ZZ247")
+    turn_totals = [[e for e in rr.trace.events if e["kind"] == "context"][-1]["total"] for rr in fx.results]
+    growth = [b - a for a, b in zip(turn_totals[2:], turn_totals[3:])]
+    gone, _ = memory_demo.run()                     # a second store, so the counts above stay as shown
+    gone.purge_expired(later)
+    gone.forget("dm-amara", later)
+    receipt = gone.receipts()[0]
+    turn_of = [t for t, rr in enumerate(v1.results, 1) for e in rr.trace.events if e["kind"] == "context"]
+    return {
+        "tokens": {"sample_tokens": count_tokens(sample), "sample_chars4_tokens": chars4(sample),
+                   "rules_tokens": count_tokens(SAFETY_RULES.render()), "rules_count": len(SAFETY_RULES.text.splitlines()) - 1},
+        "budget": {"steps": r.steps, "window_tokens": budget.WINDOW.size_tokens, "limit_tokens": budget.WINDOW.input_limit,
+                   "step1_tokens": ev[0]["total"], "step10_tokens": ev[-1]["total"],
+                   "rules_tokens": last["rules"], "tools_tokens": last["tools"], "history_tokens": last["history"],
+                   "results_tokens": last["tool_results"], "retrieved_tokens": last["retrieved"],
+                   "scratchpad_tokens": last["scratchpad"], "step1_results_tokens": first["tool_results"],
+                   "cumulative_tokens": sum(e["total"] for e in ev), "step1_tools_share": round(first["tools"] / ev[0]["total"], 2),
+                   "step10_limit_share": round(ev[-1]["total"] / budget.WINDOW.input_limit, 2),
+                   "clear_saves_tokens": cuts[0][1], "sop_saves_tokens": cuts[1][1],
+                   "step10_chars4_tokens": account(ctx.sent[-1]).chars4_total},
+        "state": {"pieces": len(STATE_MAP), "prompt": homes["prompt"], "checkpoint": homes["checkpoint"],
+                  "database": homes["database"]},
+        "compaction": {"messages": len(full.messages), "turns": len(sh.results) + 1, "before_tokens": b0.total,
+                       "after_tokens": b1.total, "saved_share": round(1 - b1.total / b0.total, 2),
+                       "folded_turns": c.dropped_turns, "folded_messages": c.dropped_messages,
+                       "summary_lines": len(c.summary.splitlines()), "kept_messages": len(c.kept),
+                       "results_before_tokens": b0.tokens["tool_results"], "results_after_tokens": b1.tokens["tool_results"],
+                       "naive_orphans": len(compaction_demo.orphaned_results(naive.messages))},
+        "scratchpad": {"free_steps": free.steps, "typed_steps": typed.steps,
+                       "free_pad_tokens": fctx.events[-1]["tokens"]["scratchpad"],
+                       "typed_pad_tokens": tctx.events[-1]["tokens"]["scratchpad"],
+                       "typed_facts": len(tctx.working.pad.facts), "typed_rejected": tctx.working.pad.rejected,
+                       "free_tools_tokens": fctx.events[0]["tokens"]["tools"], "typed_tools_tokens": tctx.events[0]["tokens"]["tools"],
+                       "pad_schema_tokens": tctx.events[0]["tokens"]["tools"] - fx.ctx.events[0]["tokens"]["tools"],
+                       "notes_schema_tokens": fctx.events[0]["tokens"]["tools"] - fx.ctx.events[0]["tokens"]["tools"],
+                       "free_total_tokens": free.trace.usage.total, "typed_total_tokens": typed.trace.usage.total},
+        "memory": {"candidates": len(rows), "stored": sum(1 for row in rows if row[2]),
+                   "refused": sum(1 for row in rows if not row[2]),
+                   "preference_days": RETENTION_DAYS["preference"], "handover_days": RETENTION_DAYS["shift_handover"],
+                   "later_days": (later - day0).days, "recall_day0": len(store.recall("dm-amara", day0)),
+                   "recall_later": len(store.recall("dm-amara", later)), "deleted_memories": receipt[3],
+                   "deleted_refusals": receipt[4]},
+        "incident": {"window_tokens": shift.WINDOW.size_tokens, "limit_tokens": shift.WINDOW.input_limit,
+                     "turns": len(v1.results), "requests": v1s["requests"], "first_missing": v1s["first_missing"],
+                     "first_missing_turn": turn_of[v1s["first_missing"] - 1],
+                     "rules_lines_kept": incident.rules_lines_kept(firstreq, SAFETY_RULES) - 1,
+                     "rules_lines": len(SAFETY_RULES.text.splitlines()) - 1,
+                     "missing_requests": v1s["missing"], "v1_sent": v1s["messages_sent"],
+                     "first_missing_tokens": v1.ctx.events[v1s["first_missing"] - 1]["total"],
+                     "over_tokens": account(uncut).total - v1.ctx.window.input_limit,
+                     "cut_lines": len(uncut.system.splitlines()) - len(firstreq.system.splitlines()),
+                     "canary_recipients": canary_recipients,
+                     "retention_problems": len(retention_problems(v1.ctx.sent, v1.ctx.pinned, v1.ctx.window))},
+        "shift": {"requests": len(fx.ctx.events), "compactions": sum(1 for e in fx.ctx.events if e["compacted_turns"]),
+                  "compacted_turns": sum(e["compacted_turns"] for e in fx.ctx.events),
+                  "max_tokens": max(e["total"] for e in fx.ctx.events), "summary_lines": len(fx.ctx.summary.splitlines()),
+                  "sent": fxs["messages_sent"], "compact_at_share": fx.ctx.compact_at_share,
+                  "compact_at_tokens": int(fx.ctx.compact_at_share * fx.ctx.window.input_limit),
+                  "keep_turns": fx.ctx.keep_turns, "retention_problems": len(retention_problems(fx.ctx.sent, fx.ctx.pinned, fx.ctx.window)),
+                  "growth_tokens": round(sum(growth) / len(growth))},
+        "meta": {"s08_fitness": count_tests("fitness/s08"), "s08_hidden": count_tests("grading/s08"),
+                 "s08_start_failing": fitness_failures(), "break_compact_failing": fitness_failures(break_compact=True),
+                 "all_at_s08": count_tests("tests") + sum(count_tests(f"fitness/s0{i}") for i in range(9))},
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
@@ -341,6 +466,8 @@ def main() -> int:
         data["s06"] = s06()
     if (ROOT / "labs/s07").exists():
         data["s07"] = s07()
+    if (ROOT / "labs/s08").exists():
+        data["s08"] = s08()
     bad = False
     for name, d in data.items():
         text = json.dumps(d, indent=1, sort_keys=True)

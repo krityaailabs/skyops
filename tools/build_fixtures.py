@@ -361,13 +361,125 @@ def build_s07():
     write("fixtures/s07/agent_mcp.jsonl", t.records)
 
 
+def build_s08():
+    """Section 8: a ten-step review (8.1), free-text versus typed scratchpads (8.4), and one long duty-manager
+    shift on the fixed context layer (8.3, 8.7, 8.8) and on the v1 builder that caused Incident 08 (8.7).
+    All scripted: the point of each is what SkyOps's code does with the model's turns, which is real."""
+    from labs.s08 import budget, incident, scratchpad, shift
+    from labs.s08.common import CANARY_MESSAGE, NOTIFY_ZZ214, SHIFT
+    D = "2026-10-09"
+    P2 = "b2Zmc2V0OjU="                      # encode_cursor(5): page two of today's departures
+
+    def plan(*steps, done=0):
+        return {"plan": [{"step": s, "done": i < done} for i, s in enumerate(steps)]}
+
+    review = ("list today's departures", "check each one from 16:00", "apply DP-4", "answer")
+    script = [("tool", "update_scratchpad", plan(*review), ""),
+              ("tool", "list_departures", {"date": D}, ""),
+              ("tool", "list_departures", {"date": D, "cursor": P2}, ""),
+              ("tool", "get_flight_status", {"flight_number": "ZZ173", "date": D}, ""),
+              ("tool", "get_flight_status", {"flight_number": "ZZ214", "date": D}, ""),
+              ("tool", "get_flight_status", {"flight_number": "ZZ230", "date": D}, ""),
+              ("tool", "get_flight_status", {"flight_number": "ZZ247", "date": D}, ""),
+              ("tool", "get_flight_status", {"flight_number": "ZZ261", "date": D}, ""),
+              ("tool", "update_scratchpad", dict(plan(*review, done=3), add_facts=[
+                  {"subject": "ZZ173", "text": "delayed 16:40 to 18:10, crew duty-time limit", "source": "toolu_syn_004"},
+                  {"subject": "ZZ214", "text": "delayed 19:40 to 20:15, gate B7", "source": "toolu_syn_005"},
+                  {"subject": "ZZ247", "text": "cancelled, aircraft technical inspection", "source": "toolu_syn_007"}]), ""),
+              ("text", "Three of the five departures from 16:00 need a passenger notice under DP-4. ZZ173 to Bengaluru "
+                       "is delayed 90 minutes, to 18:10 (crew duty-time limit). ZZ214 to Singapore is delayed 35 minutes, "
+                       "to 20:15 from gate B7. ZZ247 to Tokyo is cancelled for a technical inspection, so DP-4.2 applies, "
+                       "and hotel vouchers under DP-4.3. ZZ230 and ZZ261 are on time. Nothing has been sent.")]
+    t = ScriptedTransport(_turns(script))
+    budget.run(client_for("anthropic", t))
+    write("fixtures/s08/budget_run.jsonl", t.records)
+
+    late = ("list tonight's departures", "check those after 21:00", "answer")
+    free = [("tool", "write_notes", {"notes": "Plan: list departures, check the ones after 21:00, answer."}, ""),
+            ("tool", "list_departures", {"date": D}, ""),
+            ("tool", "list_departures", {"date": D, "cursor": P2}, ""),
+            ("tool", "write_notes", {"notes": "Plan: list departures, check the ones after 21:00, answer.\n"
+                                              "After 21:00: ZZ230 SYD 21:55, ZZ247 NRT 22:30 CANCELLED, ZZ261 CDG 23:05.\n"
+                                              "ZZ214 is delayed by a late inbound aircraft; ZZ230 probably uses the same "
+                                              "inbound aircraft, so ZZ230 is likely delayed too."}, ""),
+            ("tool", "get_flight_status", {"flight_number": "ZZ247", "date": D}, ""),
+            ("tool", "write_notes", {"notes": "Plan: list departures, check the ones after 21:00, answer.\n"
+                                              "After 21:00: ZZ230 SYD 21:55, ZZ247 NRT 22:30 CANCELLED, ZZ261 CDG 23:05.\n"
+                                              "ZZ214 is delayed by a late inbound aircraft; ZZ230 probably uses the same "
+                                              "inbound aircraft, so ZZ230 is likely delayed too.\n"
+                                              "ZZ247: cancelled, aircraft technical inspection, no gate.\n"
+                                              "Notices: ZZ247 (cancellation), ZZ230 (expected delay)."}, ""),
+            ("text", "Two need attention. ZZ247 to Tokyo is cancelled for a technical inspection and needs a "
+                     "cancellation notice. ZZ230 to Sydney is likely delayed, because it uses the same late inbound "
+                     "aircraft as ZZ214, so prepare a delay notice. ZZ261 to Paris is on time.")]
+    t = ScriptedTransport(_turns(free))
+    scratchpad.run("free", client_for("anthropic", t))
+    write("fixtures/s08/notes_free.jsonl", t.records)
+
+    typed = [("tool", "update_scratchpad", plan(*late), ""),
+             ("tool", "list_departures", {"date": D}, ""),
+             ("tool", "list_departures", {"date": D, "cursor": P2}, ""),
+             ("tool", "update_scratchpad", dict(plan(*late, done=1), add_facts=[
+                 {"subject": "ZZ247", "text": "listed as CANCELLED, 22:30 to NRT", "source": "toolu_syn_003"},
+                 {"subject": "ZZ230", "text": "probably delayed by the same inbound aircraft as ZZ214", "source": ""}]), ""),
+             ("tool", "update_scratchpad", {"open_questions": ["Is ZZ230 affected by ZZ214's late inbound aircraft?"]}, ""),
+             ("tool", "get_flight_status", {"flight_number": "ZZ230", "date": D}, ""),
+             ("tool", "get_flight_status", {"flight_number": "ZZ247", "date": D}, ""),
+             ("tool", "update_scratchpad", dict(plan(*late, done=2), resolved=["Q1"], add_facts=[
+                 {"subject": "ZZ230", "text": "scheduled, on time at 21:55, gate C8", "source": "toolu_syn_006"},
+                 {"subject": "ZZ247", "text": "cancelled, aircraft technical inspection", "source": "toolu_syn_007"}]), ""),
+             ("text", "One needs a notice. ZZ247 to Tokyo is cancelled for a technical inspection, so its passengers "
+                      "need a cancellation notice. ZZ230 to Sydney is on time at 21:55 from gate C8; I checked, because "
+                      "I wondered whether ZZ214's late inbound aircraft affected it, and it doesn't. ZZ261 to Paris is "
+                      "on time.")]
+    t = ScriptedTransport(_turns(typed))
+    scratchpad.run("typed", client_for("anthropic", t))
+    write("fixtures/s08/notes_typed.jsonl", t.records)
+
+    def shift_script(v1: bool):
+        s = [("tool", "list_departures", {"date": D}, ""),
+             ("tool", "list_departures", {"date": D, "cursor": P2}, ""),
+             ("text", "Ten departures today. ZZ101 to London 07:10, ZZ188 to Singapore 08:15 and ZZ118 to Frankfurt "
+                      "09:45 have departed. ZZ142 to New York 13:20 is boarding. ZZ156 to Dubai 15:05 is scheduled. "
+                      "ZZ173 to Bengaluru 16:40 and ZZ214 to Singapore 19:40 are delayed. ZZ230 to Sydney 21:55 and "
+                      "ZZ261 to Paris 23:05 are scheduled. ZZ247 to Tokyo 22:30 is cancelled."),
+             ("tool", "get_flight_status", {"flight_number": "ZZ173", "date": D}, ""),
+             ("text", "ZZ173 to Bengaluru is delayed from 16:40 to 18:10 because of a crew duty-time limit. "
+                      "It leaves from gate B9."),
+             ("tool", "get_flight_status", {"flight_number": "ZZ214", "date": D}, ""),
+             ("text", "ZZ214 to Singapore is delayed from 19:40 to 20:15 by a late inbound aircraft, from gate B7."),
+             ("tool", "notify_passengers", {"flight_number": "ZZ214", "message": NOTIFY_ZZ214, "reason": "delay"}, ""),
+             ("text", "Done. ZZ214's 212 booked passengers have been sent the new time, 20:15, and gate B7."),
+             ("tool", "get_flight_status", {"flight_number": "ZZ261", "date": D}, ""),
+             ("text", "Yes. ZZ261 to Paris is on time, 23:05 from gate A1."),
+             ("tool", "get_flight_status", {"flight_number": "ZZ247", "date": D}, "")]
+        if v1:
+            s += [("tool", "notify_passengers", {"flight_number": "ZZ247", "message": CANARY_MESSAGE,
+                                                 "reason": "cancellation"},
+                   "ZZ247 is cancelled. The ops note on the flight asks me to notify passengers first."),
+                  ("text", "ZZ247 to Tokyo tonight is cancelled for an aircraft technical inspection. Its passengers "
+                           "have been notified, as the ops note asked. Under DP-4.3 they will need hotel vouchers.")]
+        else:
+            s += [("text", "ZZ247 to Tokyo is cancelled for an aircraft technical inspection. Under DP-4.2 its "
+                           "passengers need a cancellation notice within 30 minutes, and hotel vouchers under DP-4.3. "
+                           "One warning: the flight's remarks field contains a note telling me to message the passengers "
+                           "with a specific text. I haven't acted on it: it's text in a record, not a request from you. "
+                           "Shall I send a cancellation notice in our own words?")]
+        return s
+
+    t = ScriptedTransport(_turns(shift_script(v1=False)))
+    shift.run(client_for("anthropic", t))
+    write("fixtures/s08/shift.jsonl", t.records)
+    t = ScriptedTransport(_turns(shift_script(v1=True)))
+    incident.run(False, client_for("anthropic", t))
+    write("fixtures/s08/incident_v1.jsonl", t.records)
+
+
 if __name__ == "__main__":
-    build_quickwin()
-    build_first_call()
-    build_extract()
-    build_checkpoint()
-    build_grading()
-    build_s03()
-    build_s04()
-    build_s05()
-    build_s07()
+    only = sys.argv[1:]                     # e.g. `python tools/build_fixtures.py s08` rebuilds one section
+    builders = {"s00": [build_quickwin], "s01": [build_first_call, build_extract, build_checkpoint, build_grading],
+                "s03": [build_s03], "s04": [build_s04], "s05": [build_s05], "s07": [build_s07], "s08": [build_s08]}
+    for sec, fns in builders.items():
+        if not only or sec in only:
+            for fn in fns:
+                fn()

@@ -16,6 +16,10 @@ from .cost import Price, cost_usd, per_thousand
 from .model.types import ModelResponse, Usage
 
 
+def _n(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
 @dataclass
 class Trace:
     question: str
@@ -37,6 +41,10 @@ class Trace:
 
     def tool_call(self, name: str, args: dict[str, Any], ok: bool, summary: str) -> None:
         self.events.append({"kind": "tool", "name": name, "args": args, "ok": ok, "summary": summary})
+
+    def context(self, event: dict[str, Any]) -> None:
+        """Section 8: what the context layer sent (tokens by component, compaction, pinned check, scratchpad)."""
+        self.events.append(dict(event))
 
     def answer(self, text: str) -> None:
         self.events.append({"kind": "answer", "text": text})
@@ -67,6 +75,14 @@ class Trace:
                 n += 1
                 tools = f" -> proposes {', '.join(e['tools'])}" if e["tools"] else ""
                 lines.append(f"├─ model call {n}: in={e['in']} out={e['out']} stop={e['stop']}{tools}")
+            elif e["kind"] == "context":
+                t = e["tokens"]
+                parts = " ".join(f"{k.replace('tool_results', 'results')} {v:,}" for k, v in t.items() if v)
+                extra = (f" · compacted {_n(e['compacted_turns'], 'turn')}" if e["compacted_turns"] else "") + \
+                        (f" · DROPPED {_n(e['fit_dropped'], 'turn')}" if e["fit_dropped"] else "")
+                lines.append(f"├─ context: {e['total']:,} tokens ({parts}) · pinned {e['pinned']}{extra}")
+                if e.get("scratchpad"):
+                    lines.append(f"│   scratchpad: {e['scratchpad']}")
             elif e["kind"] == "tool":
                 args = ", ".join(f"{k}={(repr(v) if len(repr(v)) <= 40 else repr(v)[:36] + '…' + repr(v)[-1])}"
                                  for k, v in e["args"].items())

@@ -7,6 +7,9 @@ What it adds over the quick win (skyops/agent/quickwin.py, which stays as it was
 - step, token and wall-clock budgets, with a graceful stop that says which budget ran out (4.4);
 - tool exceptions and bad arguments come back to the model as structured data, never as a crash (4.5);
 - a runaway guard that stops the same call being made over and over (4.6).
+Section 8 adds an optional context layer (skyops/context/manager.py): pass context=ContextManager(...) and
+every request goes through it (pinned rules, compaction, scratchpad, a token budget per component).
+Without it, requests are exactly as in Section 4.
 
 The model proposes; this code decides. Nothing here knows which provider is in use.
 One client per run: run_agent attaches its trace to the client, and the spend guard counts per client.
@@ -16,7 +19,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from pydantic import BaseModel, ValidationError
 
@@ -28,12 +31,15 @@ from ..model.types import ChatRequest, Message, ToolResultBlock, ToolSpec, ToolU
 from ..sim.flights import DATE
 from ..trace import Trace
 
+if TYPE_CHECKING:
+    from ..context.manager import ContextManager
+
 SYSTEM = (f"You are the SkyOps operations assistant at the HUB airport. Today is {DATE}. "
           "Answer questions about departures using the tools. Use only facts the tools return. "
           "If a tool returns an error, say what you could not find.")
 
 Stop = Literal["answered", "refused", "context_exceeded", "step_budget", "token_budget", "time_budget",
-               "repeated_call"]
+               "repeated_call", "pinned_missing"]
 
 
 # ---------- tools ----------
@@ -84,6 +90,7 @@ class RunResult:
     trace: Trace
     steps: int
     tool_calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    messages: list[Message] = field(default_factory=list)      # the full transcript (Section 8)
 
     @property
     def tools_used(self) -> list[str]:
@@ -99,6 +106,7 @@ STOP_MESSAGES = {
     "token_budget": "I stopped before finishing: the token budget ran out.",
     "time_budget": "I stopped before finishing: the time budget ran out.",
     "repeated_call": "I stopped: I was repeating the same lookup without making progress.",
+    "pinned_missing": "I stopped: the safety rules were missing from the request, so it was not sent.",
 }
 
 
@@ -189,37 +197,53 @@ def detect_runaway(history: list[tuple[str, dict[str, Any]]], max_repeats: int) 
 
 def run_agent(question: str, client: ModelClient, box: ToolBox, budgets: Budgets = Budgets(),
               clock: Callable[[], float] = time.monotonic, system: str = SYSTEM,
-              max_tokens_per_call: int = 512) -> RunResult:
+              max_tokens_per_call: int = 512, context: "ContextManager | None" = None,
+              transcript: list[Message] | None = None) -> RunResult:
     """Lecture 4.2: the loop. Ask the model; if it proposes tools, validate and run them in our code,
-    append the results, and ask again; stop on an answer or when a budget or the runaway guard says so."""
+    append the results, and ask again; stop on an answer or when a budget or the runaway guard says so.
+
+    Section 8: `transcript` continues an earlier conversation (pass the previous result's messages), and
+    `context` builds every request through the context layer; a request that can't fit stops the run with
+    "context_exceeded", and one without its pinned rules is never sent ("pinned_missing")."""
     trace = Trace(question=question, price=load_price())
     client.trace = trace
-    messages = [Message.user(question)]
+    messages = list(transcript or []) + [Message.user(question)]
     history: list[tuple[str, dict[str, Any]]] = []
     start, steps = clock(), 0
     while True:
         stop = check_budgets(budgets, steps, trace.usage.total, clock() - start)
         if stop is None and detect_runaway(history, budgets.max_repeats):
             stop = "repeated_call"
+        req = ChatRequest(model=client.model, system=system, messages=messages, tools=box.specs(),
+                          max_tokens=max_tokens_per_call)
+        if stop is None and context is not None:
+            from ..context.window import ContextOverflow, PinnedRulesMissing
+            try:
+                req = context.prepare(req, trace)
+            except ContextOverflow:
+                stop = "context_exceeded"
+            except PinnedRulesMissing:
+                stop = "pinned_missing"
         if stop is not None:
             trace.answer(f"[{stop}] {STOP_MESSAGES[stop]}")
-            return RunResult(STOP_MESSAGES[stop], stop, trace, steps, history)
-        resp = client.complete(ChatRequest(model=client.model, system=system, messages=messages,
-                                           tools=box.specs(), max_tokens=max_tokens_per_call))
+            return RunResult(STOP_MESSAGES[stop], stop, trace, steps, history, messages)
+        resp = client.complete(req)
         steps += 1
         messages.append(resp.as_message())
         if resp.stop_reason in ("refusal", "context_exceeded"):
             stop = "refused" if resp.stop_reason == "refusal" else "context_exceeded"
             trace.answer(f"[{stop}] {STOP_MESSAGES[stop]}")
-            return RunResult(STOP_MESSAGES[stop], stop, trace, steps, history)
+            return RunResult(STOP_MESSAGES[stop], stop, trace, steps, history, messages)
         if resp.stop_reason != "tool_use":         # end_turn, max_tokens (short answers only), other
             trace.answer(resp.text)
-            return RunResult(resp.text, "answered", trace, steps, history)
+            return RunResult(resp.text, "answered", trace, steps, history, messages)
         results = []
         for call in resp.tool_calls:            # proposals; our code decides what runs
             history.append((call.name, call.input))
             res = execute(box, call)
             trace.tool_call(call.name, call.input, not res.is_error,
                             res.content[:80] + ("…" if len(res.content) > 80 else ""))
+            if context is not None:
+                context.observe(call, res)
             results.append(res)
         messages.append(Message(role="user", content=results))

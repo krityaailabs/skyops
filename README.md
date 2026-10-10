@@ -45,6 +45,7 @@ git checkout s01-start && make fitness    # see what fails, and why
 | `skyops/agent/quickwin.py` | The lecture 0.3 agent: small and deliberately incomplete |
 | `skyops/sim/` | Deterministic simulators |
 | `skyops/tools/` | Validated tools |
+| `skyops/context/` | Section 8: token budget by component, pinned rules, compaction, typed scratchpad, governed long-term memory |
 | `labs/sNN/` | Lab code; each lab has a README with a hint ladder |
 | `fitness/sNN/` | Checks that fail at the start tag and pass at the solved tag |
 | `fixtures/` | Replay recordings |
