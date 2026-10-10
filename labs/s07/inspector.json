@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "skyops-first": {
+      "command": "python3",
+      "args": ["-m", "labs.s07.first_server", "--stdio"],
+      "env": {"PYTHONPATH": "."}
+    }
+  }
+}

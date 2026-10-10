@@ -1,0 +1,16 @@
+# Lecture 7.10: the SkyOps flight-ops MCP server as a container.
+# TLS usually ends at the platform's load balancer; the container listens on plain HTTP on a private network.
+# If the container must terminate TLS itself, mount a certificate and add --cert/--key to CMD.
+FROM python:3.13-slim
+WORKDIR /app
+COPY requirements.lock .
+RUN pip install --no-cache-dir -r requirements.lock
+COPY skyops ./skyops
+ENV PYTHONPATH=/app
+# Sealing key for requestState, shared by every replica (lecture 6.4): a secret, from your secret store.
+# ENV SKYOPS_STATE_KEY=...   <- never bake it into the image
+# Token keys: SKYOPS_JWKS_URL and SKYOPS_ISSUER, set by the deployment. Not secrets, but integrity-critical:
+# whoever can change them decides which tokens this server trusts. Without them the server won't start.
+USER 10001
+EXPOSE 8080
+CMD ["python", "-m", "skyops.mcp.serve", "--host", "0.0.0.0", "--port", "8080", "--hosts", "mcp.skyops.example"]

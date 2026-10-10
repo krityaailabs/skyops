@@ -1,0 +1,183 @@
+{
+ "server": "skyops-flight-ops",
+ "tools": {
+  "get_flight_status": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true
+   },
+   "description": "Get status, estimated departure, gate and delay reason for one flight on one date. Read-only. Returns not_found if the flight doesn't operate that day.",
+   "inputSchema": {
+    "properties": {
+     "date": {
+      "description": "Operating date at the hub, ISO format YYYY-MM-DD.",
+      "format": "date",
+      "title": "Date",
+      "type": "string"
+     },
+     "flight_number": {
+      "description": "Flight number: carrier code ZZ then digits, e.g. ZZ214.",
+      "title": "Flight Number",
+      "type": "string"
+     }
+    },
+    "required": [
+     "flight_number",
+     "date"
+    ],
+    "title": "get_flight_statusArguments",
+    "type": "object"
+   },
+   "name": "get_flight_status"
+  },
+  "issue_voucher": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "description": "Issue a meal or hotel voucher to one booking on a disrupted flight. Irreversible: issued vouchers can be spent at once. Above 150 EUR, returns approval_required and a person decides. One voucher per booking, flight and kind: a repeat returns the original voucher. Supports dry run.",
+   "inputSchema": {
+    "properties": {
+     "amount_eur": {
+      "description": "Voucher value in whole euros.",
+      "exclusiveMinimum": 0,
+      "maximum": 1000,
+      "title": "Amount Eur",
+      "type": "integer"
+     },
+     "booking_ref": {
+      "description": "Six-character booking reference, e.g. Q7K2LM.",
+      "pattern": "^[A-Z0-9]{6}$",
+      "title": "Booking Ref",
+      "type": "string"
+     },
+     "flight_number": {
+      "description": "The disrupted flight: carrier code ZZ then digits, e.g. ZZ247.",
+      "title": "Flight Number",
+      "type": "string"
+     },
+     "kind": {
+      "description": "Voucher type: meal or hotel.",
+      "enum": [
+       "meal",
+       "hotel"
+      ],
+      "title": "Kind",
+      "type": "string"
+     }
+    },
+    "required": [
+     "booking_ref",
+     "flight_number",
+     "kind",
+     "amount_eur"
+    ],
+    "title": "issue_voucherArguments",
+    "type": "object"
+   },
+   "name": "issue_voucher"
+  },
+  "list_departures": {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false,
+    "readOnlyHint": true
+   },
+   "description": "List departures from the hub for one date, optionally to one destination, five per page; pass next_cursor to get the next page. Read-only. Returns flight number, destination, scheduled time and status; use get_flight_status for gates, estimates and reasons.",
+   "inputSchema": {
+    "properties": {
+     "cursor": {
+      "anyOf": [
+       {
+        "maxLength": 40,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Opaque page token: pass next_cursor from the previous page; omit for the first page.",
+      "title": "Cursor"
+     },
+     "date": {
+      "description": "Operating date at the hub, ISO format YYYY-MM-DD.",
+      "format": "date",
+      "title": "Date",
+      "type": "string"
+     },
+     "destination": {
+      "anyOf": [
+       {
+        "pattern": "^[A-Za-z]{3}$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "Optional IATA destination code, three letters, e.g. SIN. Omit for all.",
+      "title": "Destination"
+     }
+    },
+    "required": [
+     "date"
+    ],
+    "title": "list_departuresArguments",
+    "type": "object"
+   },
+   "name": "list_departures"
+  },
+  "notify_passengers": {
+   "annotations": {
+    "destructiveHint": true,
+    "idempotentHint": true,
+    "openWorldHint": true,
+    "readOnlyHint": false
+   },
+   "description": "Send one SMS and email to every passenger booked on a flight. Irreversible: messages can't be recalled. Within one disruption, repeating the same message for the same flight returns the original result instead of sending again. Supports dry run.",
+   "inputSchema": {
+    "properties": {
+     "flight_number": {
+      "description": "Flight number: carrier code ZZ then digits, e.g. ZZ214.",
+      "title": "Flight Number",
+      "type": "string"
+     },
+     "message": {
+      "description": "Text sent by SMS and email to every booked passenger. Plain text, at most 320 characters.",
+      "maxLength": 320,
+      "minLength": 10,
+      "title": "Message",
+      "type": "string"
+     },
+     "reason": {
+      "description": "Why passengers are being told: delay, gate_change, cancellation or diversion.",
+      "enum": [
+       "delay",
+       "gate_change",
+       "cancellation",
+       "diversion"
+      ],
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "flight_number",
+     "message",
+     "reason"
+    ],
+    "title": "notify_passengersArguments",
+    "type": "object"
+   },
+   "name": "notify_passengers"
+  }
+ },
+ "version": "0.7.0"
+}
