@@ -1,0 +1,11 @@
+# Pinned 2026-10-09. Regenerate with `pip freeze` after a deliberate upgrade, never casually.
+pydantic==2.14.0
+httpx==0.28.1
+pytest==9.1.1
+mcp==2.3.0          # Section 6 on: official SDK v2, protocol revision 2026-07-28
+anyio==4.15.1       # Section 7 on: imported directly by the MCP labs, so pinned directly
+httpx2==2.13.0
+jsonschema==4.26.0
+PyJWT==2.14.0
+cryptography==50.0.1
+uvicorn==0.53.0

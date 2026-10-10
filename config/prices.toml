@@ -1,0 +1,27 @@
+# Price PARAMETERS, in USD per million tokens.
+#
+# Never hard-code a price in code, tests or narration. Prices change, differ by region, tier and
+# batch/priority options, and some providers price long prompts differently.
+#
+# The "example" profile is the course's teaching parameters. It is NOT a quote from any provider.
+# Every lab and every number in the course narration uses it, so the course does not go stale
+# when a provider changes its prices.
+#
+# To see your real costs, add a profile for the model you use, copied from the provider's pricing
+# page, with the date you checked it, and set SKYOPS_PRICE_PROFILE to its name.
+
+[example]
+input_per_mtok = 1.00
+output_per_mtok = 5.00
+cache_read_per_mtok = 0.10
+cache_write_per_mtok = 1.25
+source = "Kritya AI Labs course example parameters (not a provider price)"
+verified = "n/a"
+
+# [claude-haiku-5-5]
+# input_per_mtok =
+# output_per_mtok =
+# cache_read_per_mtok =
+# cache_write_per_mtok =
+# source = "https://platform.claude.com/docs/en/about-claude/pricing"
+# verified = "YYYY-MM-DD"

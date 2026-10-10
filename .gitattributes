@@ -1,0 +1,6 @@
+# Keep every text file LF on every OS: eval datasets are hashed byte-for-byte (Section 11 gate).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.bundle binary

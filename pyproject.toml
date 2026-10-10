@@ -1,0 +1,15 @@
+[project]
+name = "skyops"
+version = "0.1.0"
+description = "SkyOps Agent Platform: the evolving repository for Production Agentic AI Engineering (Kritya AI Labs)"
+requires-python = ">=3.11"
+dependencies = ["pydantic==2.14.0", "httpx==0.28.1"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "fitness"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["ignore::UserWarning"]
