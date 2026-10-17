@@ -1,7 +1,7 @@
 PY ?= python3
 export PYTHONPATH := .
 
-.PHONY: setup test fitness quickwin labs-s01 labs-s04 labs-s06 labs-s07 labs-s08 labs-s09 mcp-lock deploy-local grade dist synthetic-report fixtures
+.PHONY: setup test fitness quickwin labs-s01 labs-s04 labs-s06 labs-s07 labs-s08 labs-s09 labs-s10 eval mcp-lock deploy-local grade dist synthetic-report fixtures
 
 setup:            ## install pinned dependencies
 	$(PY) -m pip install -r requirements.lock
@@ -32,6 +32,12 @@ labs-s08:         ## Section 8: token budget, state map, compaction, scratchpads
 
 labs-s09:         ## Section 9: chunking, search, leaks, freshness, evals, bounded search, the procedures tool
 	$(PY) -m labs.s09.when_to_retrieve && $(PY) -m labs.s09.chunk_demo && $(PY) -m labs.s09.search_demo && $(PY) -m labs.s09.leak_demo && $(PY) -m labs.s09.freshness_demo && $(PY) -m labs.s09.eval_demo && $(PY) -m labs.s09.agentic_demo && $(PY) -m labs.s09.store_sizing && $(PY) -m labs.s09.procedures_demo
+
+labs-s10:         ## Section 10: eval inventory, eval-first spec, golden set, checks, assertions, judge calibration, variance, harness
+	$(PY) -m labs.s10.inventory && $(PY) -m labs.s10.edd && $(PY) -m labs.s10.golden_demo && $(PY) -m labs.s10.checks_demo && $(PY) -m labs.s10.assertions_demo && $(PY) -m labs.s10.calibrate && $(PY) -m labs.s10.variance && $(PY) -m skyops.evals.harness
+
+eval:             ## lecture 10.8: run the eval harness, write runs/s10/report.md and report.json
+	$(PY) -m skyops.evals.harness
 
 mcp-lock:         ## after a deliberate version bump: record the released tool listing
 	$(PY) -m skyops.mcp.versioning --write

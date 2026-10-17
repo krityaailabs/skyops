@@ -46,6 +46,8 @@ git checkout s01-start && make fitness    # see what fails, and why
 | `skyops/sim/` | Deterministic simulators |
 | `skyops/tools/` | Validated tools |
 | `skyops/context/` | Section 8: token budget by component, pinned rules, compaction, typed scratchpad, governed long-term memory |
+| `skyops/evals/` | Section 10: the eval harness (golden-set format, outcome, tool-call and trajectory checks, message assertions, a calibrated judge, pass@k and pass^k, the report) |
+| `data/evals/` | The golden set (`golden.jsonl` + `golden.schema.json`) and the human-labelled judge calibration set |
 | `labs/sNN/` | Lab code; each lab has a README with a hint ladder |
 | `fitness/sNN/` | Checks that fail at the start tag and pass at the solved tag |
 | `fixtures/` | Replay recordings |

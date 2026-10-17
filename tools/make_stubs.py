@@ -43,6 +43,12 @@ STUBS = {
     "skyops/retrieval/evals.py": {"recall_at_k": "9.6", "reciprocal_rank": "9.6"},
     "skyops/retrieval/access.py": {"can_read": "9.3"},
     "skyops/retrieval/tool.py": {"search_procedures": "9.9"},
+    # Section 10: the eval harness
+    "skyops/evals/dataset.py": {"validate_dataset": "10.3"},
+    "skyops/evals/checks.py": {"check_outcome": "10.4", "check_tool_calls": "10.4", "check_trajectory": "10.4",
+                               "message_assertions": "10.5"},
+    "skyops/evals/stats.py": {"pass_at_k": "10.8", "pass_hat_k": "10.8", "cohen_kappa": "10.8"},
+    "skyops/evals/harness.py": {"score_attempt": "10.8"},
 }
 IMPORT = "from skyops.model.errors import LabNotDone\n"
 

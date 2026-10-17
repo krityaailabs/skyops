@@ -544,7 +544,119 @@ def s09() -> dict:
                  "mcp_dm_top": pd["dm-deepa"]["items"][0]["doc_id"], "directory": len(DIRECTORY)},
         "meta": {"s09_fitness": count_tests("fitness/s09"), "s09_hidden": count_tests("grading/s09"),
                  "s09_start_failing": count_tests("fitness/s09") - 1,
-                 "all_at_s09": count_tests("tests") + count_tests("fitness")},
+                 "all_at_s09": count_tests("tests") + sum(count_tests(f"fitness/s0{i}") for i in range(10))},
+    }
+
+
+def s10() -> dict:
+    """Section 10: the eval harness over the disruption handler. All offline and deterministic; the handler's and the
+    judge's model turns are scripted replays, and the numbers are what the real checks, statistics and report give."""
+    import logging
+    logging.disable(logging.CRITICAL)
+    from labs.s10 import assertions_demo, calibrate as cal_demo, checks_demo, edd, inventory, variance
+    from skyops.evals.dataset import MIN_PER_CATEGORY, coverage, load_golden
+    from skyops.evals.harness import K, run_suite
+    from skyops.evals.judge import LONG_CHARS, THRESHOLD, Judge, calibrate, load_labels, load_pairs, position_test
+    from skyops.evals.stats import interpret_kappa
+    from skyops.evals.runner import N_ATTEMPTS
+    from skyops.evals.stats import cohen_kappa
+    from skyops.tools.catalog import VOUCHER_LIMIT_EUR
+    inv = inventory.figures()
+    ed = edd.results()
+    cases = load_golden()
+    cov = coverage(cases)
+    ck = checks_demo.suite()
+    af, aa = assertions_demo.figures(), assertions_demo.figures(any_time=True)
+    an = assertions_demo.figures(naive_promises=True)
+    j = Judge()
+    cal = calibrate(j)
+    pt = position_test(j)
+    ap = calibrate(cal_demo.AlwaysPass())
+    va = variance.figures()
+    hist = {c: sum(1 for x in va["counts"].values() if x == c) for c in range(N_ATTEMPTS + 1)}
+    rep = run_suite(judge=Judge())
+    LOW = 0.5
+    lb = run_suite(judge=Judge(), threshold=LOW)
+    o, bc = rep["overall"], rep["by_category"]
+    fp = [d for d in cal.disagreements if d["judge"] == "pass"]
+    return {
+        "inventory": {"s04_cases": inv["s04_cases"], "s05_questions": inv["s05_questions"], "s09_queries": inv["s09_queries"],
+                      "s05_proposed_notify": inv["s05_proposed_notify"], "s05_sent": inv["s05_sent"]},
+        "edd": {"spec_cases": len(ed["v1"]), "v1_pass": sum(ok for _, ok, _ in ed["v1"]),
+                "v2_pass": sum(ok for _, ok, _ in ed["v2"]), "v2_attempt": edd.V2_ATTEMPT,
+                "all_pass_attempts": len(ed["all_pass_attempts"])},
+        "golden": {"cases": cov["cases"], "normal": cov["by_category"]["normal"], "edge": cov["by_category"]["edge"],
+                   "adversarial": cov["by_category"]["adversarial"], "from_s01": cov["from_section_1"],
+                   "synthetic": cov["cases"] - cov["from_section_1"], "min_per_category": MIN_PER_CATEGORY,
+                   "voucher_limit_eur": VOUCHER_LIMIT_EUR},
+        "checks": {"attempts": ck["attempts"], "outcome_pass": ck["outcome_pass"], "all_pass": ck["all_pass"],
+                   "hidden_by_outcome": len(ck["hidden_by_outcome"])},
+        "asserts": {"items": af["items"], "human_fail": af["human_fail"], "caught": af["caught"],
+                    "false_alarms": af["false_alarms"], "promises": af["kinds"]["promises"],
+                    "codes": af["kinds"]["internal codes"], "facts": af["kinds"]["facts"],
+                    "left_for_judge": af["left_for_judge"], "human_fail_left": af["human_fail_left"],
+                    "anytime_caught": aa["caught"], "saved_share": round(af["caught"] / af["items"], 4),
+                    "naive_false_alarms": an["false_alarms"], "all_items": len(load_labels()),
+                    "held_out_items": len(load_labels(split="held_out"))},
+        "judge": {"items": cal.items, "human_pass": cal.human_pass, "human_fail": cal.items - cal.human_pass,
+                  "agreement_judge_share": cal.agreement_judge, "kappa_judge": round(cal.kappa_judge, 2),
+                  "kappa_judge_band": interpret_kappa(cal.kappa_judge),
+                  "kappa_judge_ci_lo": round(cal.kappa_judge_ci[0], 1), "kappa_judge_ci_hi": round(cal.kappa_judge_ci[1], 1),
+                  "agreement_pipeline_share": cal.agreement_pipeline, "kappa_pipeline": round(cal.kappa_pipeline, 2),
+                  "kappa_pipeline_band": interpret_kappa(cal.kappa_pipeline), "code_decided": cal.caught_by_assertions,
+                  "judged_items": cal.judged_items, "kappa_judged": round(cal.kappa_judged, 2),
+                  "agreement_judged_share": cal.agreement_judged,
+                  "kappa_judged_ci_lo": round(cal.kappa_judged_ci[0], 1), "kappa_judged_ci_hi": round(cal.kappa_judged_ci[1], 1),
+                  "usable": cal.usable, "judge_pass": cal.judge.count("pass"),
+                  "padding_pairs": len(cal.padding),
+                  "disagreements": len(cal.disagreements), "false_passes": len(fp),
+                  "false_passes_long": sum(d["chars"] >= LONG_CHARS for d in fp),
+                  "false_fails": len(cal.disagreements) - len(fp), "long_chars": LONG_CHARS,
+                  "long_items": cal.by_length["long"]["items"], "short_items": cal.by_length["short"]["items"],
+                  "long_human_pass_share": cal.by_length["long"]["human_pass_share"],
+                  "long_judge_pass_share": cal.by_length["long"]["judge_pass_share"],
+                  "short_human_pass_share": cal.by_length["short"]["human_pass_share"],
+                  "short_judge_pass_share": cal.by_length["short"]["judge_pass_share"],
+                  "threshold": THRESHOLD, "pairs": len(load_pairs()), "pair_calls": pt.calls,
+                  "consistent": pt.consistent, "inconsistent": pt.inconsistent,
+                  "inconsistent_all_first": pt.inconsistent_all_first, "first_slot_share": pt.first_slot_share,
+                  "agree_consistent": pt.agree_with_human,
+                  "always_pass_agreement_share": ap.agreement_judge, "always_pass_kappa": round(ap.kappa_judge, 2),
+                  "model": j.client.model, "po": cal.agreement_judge,
+                  "judge_pass_share": round(cal.judge.count("pass") / cal.items, 4),
+                  "human_pass_share": round(cal.human_pass / cal.items, 4),
+                  "pe": round(sum((cal.human.count(l) / cal.items) * (cal.judge.count(l) / cal.items)
+                                                for l in ("pass", "fail")), 4),
+                  "caught_false_passes": sum(d["caught_by_assertions"] for d in fp),
+                  "pipeline_false_passes": sum(h == "fail" and q == "pass" for h, q in zip(cal.human, cal.pipeline)),
+                  "pipeline_false_fails": sum(h == "pass" and q == "fail" for h, q in zip(cal.human, cal.pipeline))},
+        "variance": {"cases": va["cases"], "n": va["n"], "k": va["k"],
+                     **{f"run{i + 1}_green": g for i, g in enumerate(va["per_run"])},
+                     "best_run_green": max(va["per_run"]), "worst_run_green": min(va["per_run"]),
+                     "five_of_five": hist[5], "four_of_five": hist[4], "three_of_five": hist[3],
+                     "pass_rate_share": round(va["pass_rate"], 4), "pass_at_k_share": round(va["pass_at_k"], 4),
+                     "pass_hat_k_share": round(va["pass_hat_k"], 4), "every_green": va["every_green"],
+                     "unbiased_at_k": round(va["unbiased_at_k"], 2), "naive_at_k": round(va["naive_at_k"], 3),
+                     "unbiased_hat_k": round(va["unbiased_hat_k"], 2), "naive_hat_k": round(va["naive_hat_k"], 3),
+                     "challenge_at_2": round(va["challenge_at_2"], 2), "challenge_hat_2": round(va["challenge_hat_2"], 2),
+                     "codex_n": 200, "codex_k_max": 100, "codex_problems": 164, "at_k_max_c": va["n"] - va["k"]},
+        "harness": {"cases": o["cases"], "attempts": o["attempts"], "n": N_ATTEMPTS, "k": K,
+                    "judge_used": rep["judge"]["used"], "kappa_judged": round(rep["judge"]["kappa_judged"], 2),
+                    "pass_rate_share": o["pass_rate"], "pass_at_k_share": o["pass_at_k"], "pass_hat_k_share": o["pass_hat_k"],
+                    "first_green": o["first_attempt_green"], "every_green": o["every_attempt_green"],
+                    **{f"{c}_pass_hat_k_share": bc[c]["pass_hat_k"] for c in bc},
+                    **{f"{c}_every_green": bc[c]["every_attempt_green"] for c in bc},
+                    **{f"failing_{c}": v for c, v in rep["attempts_failing_check"].items()},
+                    "judge_calls": rep["judge"]["calls_in_suite"], "judged": rep["judged_attempts"],
+                    "agent_per_1000_attempts_usd": rep["agent_per_1000_attempts_usd"],
+                    "low_threshold": LOW, "lowbar_used": lb["judge"]["used"],
+                    "lowbar_pass_rate_share": lb["overall"]["pass_rate"],
+                    "lowbar_pass_hat_k_share": lb["overall"]["pass_hat_k"],
+                    "lowbar_failing_judge": lb["attempts_failing_check"]["judge"],
+                    "lowbar_judge_calls": lb["judge"]["calls_in_suite"]},
+        "meta": {"s10_fitness": count_tests("fitness/s10"), "s10_hidden": count_tests("grading/s10"),
+                 "s10_start_failing": count_tests("fitness/s10") - 1,
+                 "all_at_s10": count_tests("tests") + sum(count_tests(f"fitness/s{i:02d}") for i in range(11))},
     }
 
 
@@ -572,6 +684,8 @@ def main() -> int:
         data["s08"] = s08()
     if (ROOT / "labs/s09").exists():
         data["s09"] = s09()
+    if (ROOT / "labs/s10").exists():
+        data["s10"] = s10()
     bad = False
     for name, d in data.items():
         text = json.dumps(d, indent=1, sort_keys=True)

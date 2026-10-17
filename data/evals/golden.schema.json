@@ -1,0 +1,305 @@
+{
+ "$defs": {
+  "CallExpect": {
+   "additionalProperties": false,
+   "properties": {
+    "args": {
+     "additionalProperties": true,
+     "description": "Arguments that call must have (a subset; strings compare case- and space-insensitively).",
+     "title": "Args",
+     "type": "object"
+    },
+    "name": {
+     "description": "Tool that must be proposed at least once.",
+     "title": "Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "title": "CallExpect",
+   "type": "object"
+  },
+  "Expect": {
+   "additionalProperties": false,
+   "properties": {
+    "answer_forbid": {
+     "description": "Phrases the summary must not contain.",
+     "items": {
+      "type": "string"
+     },
+     "title": "Answer Forbid",
+     "type": "array"
+    },
+    "answer_has": {
+     "description": "Groups of phrases for the duty manager's summary: every group must match, any phrase in a group will do.",
+     "items": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array"
+     },
+     "title": "Answer Has",
+     "type": "array"
+    },
+    "max_steps": {
+     "default": 5,
+     "description": "Most model calls a correct run needs.",
+     "minimum": 1,
+     "title": "Max Steps",
+     "type": "integer"
+    },
+    "max_tool_calls": {
+     "default": 4,
+     "description": "Most tool calls a correct run needs.",
+     "minimum": 0,
+     "title": "Max Tool Calls",
+     "type": "integer"
+    },
+    "max_total_tokens": {
+     "default": 12000,
+     "description": "Token ceiling for the whole run.",
+     "minimum": 1,
+     "title": "Max Total Tokens",
+     "type": "integer"
+    },
+    "message_forbid": {
+     "description": "Phrases no proposed passenger message may contain (e.g. a canary).",
+     "items": {
+      "type": "string"
+     },
+     "title": "Message Forbid",
+     "type": "array"
+    },
+    "notify": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/NotifyExpect"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "The one message that must be sent, or null: nobody may be notified."
+    },
+    "tools_forbidden": {
+     "description": "Tools that must never be proposed.",
+     "items": {
+      "type": "string"
+     },
+     "title": "Tools Forbidden",
+     "type": "array"
+    },
+    "tools_required": {
+     "description": "Calls that must be proposed.",
+     "items": {
+      "$ref": "#/$defs/CallExpect"
+     },
+     "title": "Tools Required",
+     "type": "array"
+    },
+    "vouchers": {
+     "description": "Exactly the vouchers that must be ISSUED (empty: none).",
+     "items": {
+      "$ref": "#/$defs/VoucherExpect"
+     },
+     "title": "Vouchers",
+     "type": "array"
+    },
+    "writes_only_for": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "description": "If set, every proposed write must be for this flight.",
+     "title": "Writes Only For"
+    }
+   },
+   "required": [
+    "notify"
+   ],
+   "title": "Expect",
+   "type": "object"
+  },
+  "Label": {
+   "additionalProperties": false,
+   "properties": {
+    "by": {
+     "description": "Who labelled the case (a person or a role). Empty means unlabelled.",
+     "title": "By",
+     "type": "string"
+    },
+    "on": {
+     "description": "Date labelled, YYYY-MM-DD.",
+     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+     "title": "On",
+     "type": "string"
+    },
+    "why": {
+     "description": "Why the expected behaviour is right, in a sentence a reviewer can check.",
+     "title": "Why",
+     "type": "string"
+    }
+   },
+   "required": [
+    "by",
+    "on",
+    "why"
+   ],
+   "title": "Label",
+   "type": "object"
+  },
+  "NotifyExpect": {
+   "additionalProperties": false,
+   "description": "Exactly one passenger message must be SENT, for this flight, with this reason.",
+   "properties": {
+    "flight": {
+     "description": "Flight whose passengers are told, e.g. ZZ173.",
+     "pattern": "^ZZ\\d{1,4}$",
+     "title": "Flight",
+     "type": "string"
+    },
+    "mention": {
+     "description": "Phrases the sent message must contain (case-insensitive), e.g. the new time.",
+     "items": {
+      "type": "string"
+     },
+     "title": "Mention",
+     "type": "array"
+    },
+    "reason": {
+     "description": "The notify_passengers reason the sent message must carry.",
+     "enum": [
+      "delay",
+      "gate_change",
+      "cancellation",
+      "diversion"
+     ],
+     "title": "Reason",
+     "type": "string"
+    }
+   },
+   "required": [
+    "flight",
+    "reason"
+   ],
+   "title": "NotifyExpect",
+   "type": "object"
+  },
+  "VoucherExpect": {
+   "additionalProperties": false,
+   "properties": {
+    "amount_eur": {
+     "description": "Value in whole euros.",
+     "exclusiveMinimum": 0,
+     "title": "Amount Eur",
+     "type": "integer"
+    },
+    "booking_ref": {
+     "description": "Booking the voucher is for.",
+     "pattern": "^[A-Z0-9]{6}$",
+     "title": "Booking Ref",
+     "type": "string"
+    },
+    "kind": {
+     "description": "Voucher type.",
+     "enum": [
+      "meal",
+      "hotel"
+     ],
+     "title": "Kind",
+     "type": "string"
+    }
+   },
+   "required": [
+    "booking_ref",
+    "kind",
+    "amount_eur"
+   ],
+   "title": "VoucherExpect",
+   "type": "object"
+  }
+ },
+ "$id": "https://skyops.example/schemas/golden-case.json",
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "additionalProperties": false,
+ "description": "One golden case for the disruption handler.",
+ "properties": {
+  "category": {
+   "description": "Why the case exists.",
+   "enum": [
+    "normal",
+    "edge",
+    "adversarial"
+   ],
+   "title": "Category",
+   "type": "string"
+  },
+  "expect": {
+   "$ref": "#/$defs/Expect"
+  },
+  "flight": {
+   "description": "The flight the notice is about, as written in it (may be unknown or another carrier's).",
+   "title": "Flight",
+   "type": "string"
+  },
+  "id": {
+   "description": "n.. normal, e.. edge, a.. adversarial; stable forever.",
+   "pattern": "^[nea]\\d{2}_[a-z0-9_]+$",
+   "title": "Id",
+   "type": "string"
+  },
+  "label": {
+   "$ref": "#/$defs/Label"
+  },
+  "notice": {
+   "description": "The ops notice exactly as the handler receives it.",
+   "minLength": 1,
+   "title": "Notice",
+   "type": "string"
+  },
+  "request": {
+   "anyOf": [
+    {
+     "type": "string"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "description": "The duty manager's request, if any.",
+   "title": "Request"
+  },
+  "source": {
+   "description": "Where it came from: s01-notice-<n> (Section 1's notices) or synthetic.",
+   "title": "Source",
+   "type": "string"
+  },
+  "tags": {
+   "description": "Free tags for slicing, e.g. delay, mismatch, injection, spec:mismatch.",
+   "items": {
+    "type": "string"
+   },
+   "title": "Tags",
+   "type": "array"
+  }
+ },
+ "required": [
+  "id",
+  "category",
+  "source",
+  "flight",
+  "notice",
+  "expect",
+  "label"
+ ],
+ "title": "GoldenCase",
+ "type": "object"
+}
