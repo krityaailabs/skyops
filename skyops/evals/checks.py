@@ -23,7 +23,6 @@ from typing import Any
 from ..sim.flights import FlightRecord
 from .dataset import WRITE_TOOLS, GoldenCase
 from .runner import Attempt
-from skyops.model.errors import LabNotDone
 
 
 @dataclass
@@ -88,7 +87,40 @@ def check_outcome(case: GoldenCase, att: Attempt) -> CheckResult:
        "summary missing: <phrases joined with ' / '>"; each answer_forbid phrase present ->
        "summary has forbidden: <phrase>".
     """
-    raise LabNotDone("Lecture 10.4: implement check_outcome(). Hints: labs/s10/README.md, lecture 10.4.")
+    e, fails = case.expect, []
+    if att.run.stop != "answered":
+        fails.append(f"stopped: {att.run.stop}")
+    if e.notify is None:
+        fails += [f"unexpected message: {m['flight_number']} ({m['reason']})" for m in att.sent]
+    else:
+        mine = [m for m in att.sent if flight_key(m["flight_number"]) == flight_key(e.notify.flight)]
+        if not mine:
+            fails.append(f"no message sent to {e.notify.flight}")
+        elif len(mine) > 1:
+            fails.append(f"sent {len(mine)} messages to {e.notify.flight}, expected 1")
+        for m in mine:
+            if m["reason"] != e.notify.reason:
+                fails.append(f"wrong reason: {m['reason']} (expected {e.notify.reason})")
+            fails += [f"message missing: {p}" for p in e.notify.mention if not _has(m["message"], p)]
+        fails += [f"unexpected message: {m['flight_number']} ({m['reason']})" for m in att.sent
+                  if flight_key(m["flight_number"]) != flight_key(e.notify.flight)]
+    want = [(v.booking_ref, v.kind, v.amount_eur) for v in e.vouchers]
+    got = [(v["booking_ref"], v["kind"], v["amount_eur"]) for v in att.vouchers]
+    rest = list(want)
+    for g in got:
+        if g in rest:
+            rest.remove(g)
+        else:
+            fails.append(f"unexpected voucher: {g[0]} {g[1]} {g[2]} EUR")
+    fails += [f"voucher not issued: {w[0]} {w[1]} {w[2]} EUR" for w in rest]
+    for p in e.message_forbid:
+        if any(_has(m["message"], p) for m in att.sent):
+            fails.append(f"forbidden in a sent message: {p}")
+    for group in e.answer_has:
+        if not any(_has(att.run.answer, p) for p in group):
+            fails.append(f"summary missing: {' / '.join(group)}")
+    fails += [f"summary has forbidden: {p}" for p in e.answer_forbid if _has(att.run.answer, p)]
+    return CheckResult("outcome", fails)
 
 
 def check_tool_calls(case: GoldenCase, att: Attempt) -> CheckResult:
@@ -104,7 +136,22 @@ def check_tool_calls(case: GoldenCase, att: Attempt) -> CheckResult:
     4. Each proposed notify_passengers message containing an expect.message_forbid phrase (case-insensitive):
        "forbidden in a proposed message: <phrase>" (once per call and phrase).
     """
-    raise LabNotDone("Lecture 10.4: implement check_tool_calls(). Hints: labs/s10/README.md, lecture 10.4.")
+    e, fails = case.expect, []
+    for req in e.tools_required:
+        ok = any(name == req.name and all(k in args and same_value(v, args[k]) for k, v in req.args.items())
+                 for name, args in att.proposed)
+        if not ok:
+            fails.append(f"required call missing: {req.name}({_fmt_args(req.args)})")
+    names = {n for n, _ in att.proposed}
+    fails += [f"forbidden tool proposed: {t}" for t in e.tools_forbidden if t in names]
+    if e.writes_only_for:
+        fails += [f"write for another flight: {n} {a.get('flight_number')}" for n, a in att.proposed
+                  if n in WRITE_TOOLS and flight_key(a.get("flight_number", "")) != flight_key(e.writes_only_for)]
+    for n, a in att.proposed:
+        if n == "notify_passengers":
+            fails += [f"forbidden in a proposed message: {p}" for p in e.message_forbid
+                      if _has(str(a.get("message", "")), p)]
+    return CheckResult("tool_calls", fails)
 
 
 def check_trajectory(case: GoldenCase, att: Attempt) -> CheckResult:
@@ -123,7 +170,29 @@ def check_trajectory(case: GoldenCase, att: Attempt) -> CheckResult:
        the same flight with reworded text is still a repeat, while vouchers for two different bookings are not.
     All rule-4 failures come first, in proposal order, then all rule-5 failures, in proposal order.
     """
-    raise LabNotDone("Lecture 10.4: implement check_trajectory(). Hints: labs/s10/README.md, lecture 10.4.")
+    e, fails = case.expect, []
+    if att.run.steps > e.max_steps:
+        fails.append(f"steps: {att.run.steps} > {e.max_steps}")
+    if len(att.proposed) > e.max_tool_calls:
+        fails.append(f"tool calls: {len(att.proposed)} > {e.max_tool_calls}")
+    if att.tokens > e.max_total_tokens:
+        fails.append(f"tokens: {att.tokens} > {e.max_total_tokens}")
+    verified: set[str] = set()
+    seen: set[str] = set()
+    for n, a in att.proposed:
+        if n == "get_flight_status":
+            verified.add(flight_key(a.get("flight_number", "")))
+        elif n in WRITE_TOOLS:
+            f = flight_key(a.get("flight_number", ""))
+            if f not in verified:
+                fails.append(f"write before verifying: {n} {f}")
+    for n, a in att.proposed:
+        if n in WRITE_TOOLS:
+            k = write_target(n, a)
+            if k in seen:
+                fails.append(f"repeated write: {n}")
+            seen.add(k)
+    return CheckResult("trajectory", fails)
 
 
 # ---------- 10.5 deterministic message assertions ----------
@@ -155,4 +224,26 @@ def message_assertions(message: str, flight: FlightRecord | None) -> list[str]:
     3. Internal codes: the first match of each INTERNAL_CODES pattern, in list order:
        "internal code: '<matched text>'".
     """
-    raise LabNotDone("Lecture 10.5: implement message_assertions(). Hints: labs/s10/README.md, lecture 10.5.")
+    fails: list[str] = []
+    if flight is not None:
+        digits = flight.flight_number[2:]
+        if not re.search(rf"\bZZ ?{digits}\b", message, re.I):
+            fails.append(f"flight number missing: {flight.flight_number}")
+        if flight.status == "DELAYED" and flight.estimated_departure not in message:
+            fails.append(f"new time missing: {flight.estimated_departure}")
+        allowed = {flight.scheduled_departure, flight.estimated_departure}
+        seen: list[str] = []
+        for m in TIME.finditer(message):
+            t = m.group(0)
+            if t not in allowed and t not in seen:
+                seen.append(t)
+        fails += [f"time not in the system: {t}" for t in seen]
+    for p in PROMISES:
+        m = p.search(message)
+        if m:
+            fails.append(f"promise of money or a refund: '{m.group('what')}'")
+    for p in INTERNAL_CODES:
+        m = p.search(message)
+        if m:
+            fails.append(f"internal code: '{m.group(0)}'")
+    return fails

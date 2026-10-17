@@ -26,7 +26,6 @@ from .dataset import GOLDEN, GoldenCase, dataset_sha256, load_golden
 from .judge import FIXTURE as JUDGE_FIXTURE, THRESHOLD, Calibration, Judge, calibrate
 from .runner import N_ATTEMPTS, Attempt, attempt_files, run_case, turns_label
 from .stats import pass_at_k, pass_hat_k
-from skyops.model.errors import LabNotDone
 
 K = 3
 OUT = ROOT / "runs/s10"
@@ -64,7 +63,22 @@ def score_attempt(case: GoldenCase, att: Attempt, judge: Judge | None = None) ->
     Return AttemptScore(case.id, att.attempt, checks, judged). Passing `judge=None` is how the harness runs an
     uncalibrated judge: not at all.
     """
-    raise LabNotDone("Lecture 10.8: implement score_attempt(). Hints: labs/s10/README.md, lecture 10.8.")
+    checks = [check_outcome(case, att), check_tool_calls(case, att), check_trajectory(case, att)]
+    fails: list[str] = []
+    for m in att.sent:
+        rec = sim.find(m["flight_number"], sim.DATE)
+        fails += [f"{m['flight_number']}: {f}" for f in message_assertions(m["message"], rec)]
+    checks.append(CheckResult("assertions", fails))
+    judged = False
+    if judge is not None and att.sent and all(c.passed for c in checks):
+        jf = []
+        for m in att.sent:
+            v = judge.grade(m["message"], sim.find(m["flight_number"], sim.DATE))
+            if v.verdict == "fail":
+                jf.append(f"{m['flight_number']}: {v.reason}")
+        checks.append(CheckResult("judge", jf))
+        judged = True
+    return AttemptScore(case.id, att.attempt, checks, judged)
 
 
 def summarise(cases: list[GoldenCase], scores: dict[str, list[AttemptScore]], attempts: dict[str, list[Attempt]],

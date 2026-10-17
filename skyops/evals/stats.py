@@ -14,7 +14,6 @@ from __future__ import annotations
 import random
 from collections import Counter
 from typing import Hashable, Sequence
-from skyops.model.errors import LabNotDone
 
 
 def _check(n: int, c: int, k: int) -> None:
@@ -32,7 +31,13 @@ def pass_at_k(n: int, c: int, k: int) -> float:
     (say n = 200) never builds huge integers or overflows a float. Return a float in [0, 1].
     Note: 1 - (1 - c/n) ** k is NOT this estimator; it is biased low.
     """
-    raise LabNotDone("Lecture 10.8: implement pass_at_k(). Hints: labs/s10/README.md, lecture 10.8.")
+    _check(n, c, k)
+    if n - c < k:
+        return 1.0
+    prod = 1.0
+    for i in range(n - c + 1, n + 1):
+        prod *= 1.0 - k / i
+    return 1.0 - prod
 
 
 def pass_hat_k(n: int, c: int, k: int) -> float:
@@ -41,7 +46,13 @@ def pass_hat_k(n: int, c: int, k: int) -> float:
     pass^k = C(c, k) / C(n, k). Same argument checks as pass_at_k (ValueError). If c < k, return 0.0.
     Compute it as the product over i in 0 .. k-1 of (c - i) / (n - i). Return a float in [0, 1].
     """
-    raise LabNotDone("Lecture 10.8: implement pass_hat_k(). Hints: labs/s10/README.md, lecture 10.8.")
+    _check(n, c, k)
+    if c < k:
+        return 0.0
+    prod = 1.0
+    for i in range(k):
+        prod *= (c - i) / (n - i)
+    return prod
 
 
 def cohen_kappa(a: Sequence[Hashable], b: Sequence[Hashable]) -> float:
@@ -53,7 +64,15 @@ def cohen_kappa(a: Sequence[Hashable], b: Sequence[Hashable]) -> float:
     (both raters used one and the same label for everything: kappa is undefined, and the set can't calibrate
     anything). Return a float; it can be negative (worse than chance).
     """
-    raise LabNotDone("Lecture 10.8: implement cohen_kappa(). Hints: labs/s10/README.md, lecture 10.8.")
+    if len(a) != len(b) or not a:
+        raise ValueError("need two non-empty label sequences of the same length")
+    n = len(a)
+    po = sum(x == y for x, y in zip(a, b)) / n
+    ca, cb = Counter(a), Counter(b)
+    pe = sum((ca[l] / n) * (cb[l] / n) for l in set(ca) | set(cb))
+    if pe == 1:
+        raise ValueError("kappa is undefined: both raters used a single, identical label")
+    return (po - pe) / (1 - pe)
 
 
 def bootstrap_kappa_ci(a: Sequence[Hashable], b: Sequence[Hashable], n_boot: int = 2000, seed: int = 10,

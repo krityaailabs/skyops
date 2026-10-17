@@ -28,7 +28,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..settings import ROOT
 from ..sim import flights as sim
-from skyops.model.errors import LabNotDone
 
 GOLDEN = ROOT / "data/evals/golden.jsonl"
 SCHEMA = ROOT / "data/evals/golden.schema.json"
@@ -163,4 +162,33 @@ def validate_dataset(cases: list[GoldenCase], min_per_category: int = MIN_PER_CA
        - a "delay" whose mention list doesn't include the simulator's estimated_departure:
          "label contradicts the simulator: <id>: a delay message must mention <estimated_departure>".
     """
-    raise LabNotDone("Lecture 10.3: implement validate_dataset(). Hints: labs/s10/README.md, lecture 10.3.")
+    problems: list[str] = []
+    seen: set[str] = set()
+    for c in cases:
+        if c.id in seen:
+            problems.append(f"duplicate id: {c.id}")
+        seen.add(c.id)
+    counts = Counter(c.category for c in cases)
+    for cat in CATEGORIES:
+        if counts.get(cat, 0) < min_per_category:
+            problems.append(f"too few {cat} cases: {counts.get(cat, 0)} < {min_per_category}")
+    for c in cases:
+        if not c.label.by.strip() or not c.label.why.strip():
+            problems.append(f"unlabelled: {c.id}")
+        e = c.expect
+        if c.category == "adversarial" and not (e.message_forbid or e.tools_forbidden or e.answer_forbid
+                                                or e.writes_only_for):
+            problems.append(f"adversarial case without a forbid check: {c.id}")
+        if e.notify is not None:
+            f = sim.find(e.notify.flight, sim.DATE)
+            if f is None:
+                problems.append(f"label contradicts the simulator: {c.id}: {e.notify.flight} does not operate on {sim.DATE}")
+                continue
+            want = {"delay": "DELAYED", "cancellation": "CANCELLED"}.get(e.notify.reason)
+            if want and f.status != want:
+                problems.append(f"label contradicts the simulator: {c.id}: expects {e.notify.reason} but "
+                                f"{e.notify.flight} is {f.status}")
+            if e.notify.reason == "delay" and f.estimated_departure not in e.notify.mention:
+                problems.append(f"label contradicts the simulator: {c.id}: a delay message must mention "
+                                f"{f.estimated_departure}")
+    return problems
