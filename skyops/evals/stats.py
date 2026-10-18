@@ -17,7 +17,6 @@ import math
 import random
 from collections import Counter
 from typing import Hashable, Sequence
-from skyops.model.errors import LabNotDone
 
 
 def _check(n: int, c: int, k: int) -> None:
@@ -132,7 +131,15 @@ def wilson_interval(c: int, n: int, z: float = 1.96) -> tuple[float, float]:
     exactly where small eval suites live. It assumes the n attempts are independent; attempts of the same case
     are not (some cases are simply harder), so for a suite it is a lower bound on the real uncertainty.
     """
-    raise LabNotDone("Lecture 11.2: implement wilson_interval(). Hints: labs/s11/README.md, lecture 11.2.")
+    if n < 1 or not 0 <= c <= n:
+        raise ValueError(f"need n >= 1 and 0 <= c <= n (got c={c}, n={n})")
+    p = c / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = (z / denom) * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    lo = 0.0 if c == 0 else max(0.0, centre - half)
+    hi = 1.0 if c == n else min(1.0, centre + half)
+    return lo, hi
 
 
 def two_proportion_test(c1: int, n1: int, c2: int, n2: int) -> tuple[float, float]:
@@ -148,7 +155,14 @@ def two_proportion_test(c1: int, n1: int, c2: int, n2: int) -> tuple[float, floa
     at least five passes and five failures expected in each). Eval attempts are clustered by case, so the
     p-value is optimistic; treat it as a noise filter, never as proof.
     """
-    raise LabNotDone("Lecture 11.1: implement two_proportion_test(). Hints: labs/s11/README.md, lecture 11.1.")
+    if n1 < 1 or n2 < 1 or not (0 <= c1 <= n1 and 0 <= c2 <= n2):
+        raise ValueError(f"need n >= 1 and 0 <= c <= n (got {c1}/{n1}, {c2}/{n2})")
+    pooled = (c1 + c2) / (n1 + n2)
+    if pooled in (0.0, 1.0):
+        return 0.0, 1.0
+    se = math.sqrt(pooled * (1 - pooled) * (1 / n1 + 1 / n2))
+    z = (c1 / n1 - c2 / n2) / se
+    return z, 0.5 * math.erfc(z / math.sqrt(2))
 
 
 def fisher_drop_p(c1: int, n1: int, c2: int, n2: int) -> float:

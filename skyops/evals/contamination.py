@@ -24,7 +24,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..settings import ROOT
-from skyops.model.errors import LabNotDone
 
 N = 8
 THRESHOLD = 0.5
@@ -73,7 +72,23 @@ def find_contamination(items: list[Item], sources: dict[str, list[str]], n: int 
     - An item with no tokens is skipped.
     A source leaks the item when share >= threshold: Hit(item.id, item.kind, source name, round(share, 4)).
     """
-    raise LabNotDone("Lecture 11.5: implement find_contamination(). Hints: labs/s11/README.md, lecture 11.5.")
+    grams = {name: set().union(*(ngrams(tokens(t), n) for t in texts)) if texts else set()
+             for name, texts in sources.items()}
+    toks_by_source = {name: [tokens(t) for t in texts] for name, texts in sources.items()}
+    hits = []
+    for it in items:
+        toks = tokens(it.text)
+        if not toks:
+            continue
+        mine = ngrams(toks, n)
+        for name in sources:
+            if len(toks) >= n:
+                share = len(mine & grams[name]) / len(mine)
+            else:
+                share = 1.0 if any(_contiguous(toks, t) for t in toks_by_source[name]) else 0.0
+            if share >= threshold:
+                hits.append(Hit(it.id, it.kind, name, round(share, 4)))
+    return hits
 
 
 # ---------- what to scan ----------

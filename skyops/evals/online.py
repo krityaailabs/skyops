@@ -33,7 +33,6 @@ from ..settings import ROOT
 from ..sim.flights import FlightRecord
 from .checks import CheckResult, flight_key, message_assertions, write_target
 from .dataset import WRITE_TOOLS
-from skyops.model.errors import LabNotDone
 
 TRACES = ROOT / "data/prod/traces.jsonl"
 CHECKS = ("confirmed", "trajectory", "assertions")
@@ -128,7 +127,15 @@ def psi(expected: dict[str, int], actual: dict[str, int], eps: float = 1e-4) -> 
     0.1 to 0.25 moderate, above 0.25 a large shift. Its spread depends on the sample size and the number of bins,
     so read it next to the counts, and pair it with a test that knows about n.
     """
-    raise LabNotDone("Lecture 11.5: implement psi(). Hints: labs/s11/README.md, lecture 11.5.")
+    te, ta = sum(expected.values()), sum(actual.values())
+    if te == 0 or ta == 0:
+        raise ValueError("both distributions need at least one count")
+    total = 0.0
+    for b in sorted(set(expected) | set(actual)):
+        e = expected.get(b, 0) / te or eps
+        a = actual.get(b, 0) / ta or eps
+        total += (a - e) * math.log(a / e)
+    return total
 
 
 PSI_LITTLE, PSI_LARGE = 0.1, 0.25     # the rule-of-thumb bands (credit scoring, Lewis 1994): a convention

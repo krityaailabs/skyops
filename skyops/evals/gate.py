@@ -40,7 +40,6 @@ from typing import Any
 from ..model.transport import ReplayMiss
 from ..settings import ROOT
 from .stats import drop_p, pass_hat_k, wilson_interval
-from skyops.model.errors import LabNotDone
 
 GATE_CONFIG = ROOT / "config/gate.toml"
 BASELINE = ROOT / "data/evals/baseline.json"
@@ -137,7 +136,24 @@ def compare_category(category: str, base: list[tuple[int, int]], cand: list[tupl
     Attempts of one case are not independent, so either p-value is optimistic; with a few cases per category the
     floor does most of the work.
     """
-    raise LabNotDone("Lecture 11.1: implement compare_category(). Hints: labs/s11/README.md, lecture 11.1.")
+    if not base or not cand:
+        raise ValueError(f"{category}: no cases to compare")
+    fails, warns = [], []
+    phk = sum(pass_hat_k(n, c, k) for n, c in cand) / len(cand)
+    if round(phk, 4) < rule.min_pass_hat_k:
+        fails.append(f"{category}: pass^{k} {phk:.2f} is below the floor {rule.min_pass_hat_k:.2f}")
+    bn, bc = sum(n for n, _ in base), sum(c for _, c in base)
+    cn, cc = sum(n for n, _ in cand), sum(c for _, c in cand)
+    drop = round(bc / bn - cc / cn, 4)
+    if drop > rule.max_drop:
+        p, method = drop_p(bc, bn, cc, cn)
+        msg = (f"{category}: pass rate fell from {bc / bn:.0%} to {cc / cn:.0%} ({drop * 100:.0f} points, more than "
+               f"{rule.max_drop * 100:.0f}; {fmt_p(p)}{', exact' if method == 'exact' else ''})")
+        if p < alpha:
+            fails.append(msg)
+        else:
+            warns.append(msg + ", not significant: add cases before trusting it")
+    return fails, warns
 
 
 def case_diff(base: dict[str, dict[str, Any]], cand: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -150,7 +166,21 @@ def case_diff(base: dict[str, dict[str, Any]], cand: dict[str, dict[str, Any]]) 
     passes / n exactly, by cross-multiplying, never with floats). Cases with an equal rate are left out.
     The category comes from the candidate, or from the baseline for a removed case.
     """
-    raise LabNotDone("Lecture 11.1: implement case_diff(). Hints: labs/s11/README.md, lecture 11.1.")
+    rows = []
+    fmt = lambda v: f"{v['passes']}/{v['n']}"  # noqa: E731
+    for cid, c in cand.items():
+        b = base.get(cid)
+        if b is None:
+            rows.append({"id": cid, "category": c["category"], "base": "-", "cand": fmt(c), "change": "new"})
+            continue
+        lhs, rhs = c["passes"] * b["n"], b["passes"] * c["n"]
+        if lhs != rhs:
+            rows.append({"id": cid, "category": c["category"], "base": fmt(b), "cand": fmt(c),
+                         "change": "worse" if lhs < rhs else "better"})
+    for cid in sorted(set(base) - set(cand)):
+        rows.append({"id": cid, "category": base[cid]["category"], "base": fmt(base[cid]), "cand": "-",
+                     "change": "removed"})
+    return rows
 
 
 # ---------- 11.2: quarantine ----------
@@ -183,7 +213,50 @@ def quarantine_problems(entries: list[dict[str, Any]], today: str, known: dict[s
     An entry dated after today (added > today) is not in force yet and reports nothing. Every other entry with no
     problem is in force: add "<suite>/<case>" to the returned set. Return (in_force, problems).
     """
-    raise LabNotDone("Lecture 11.2: implement quarantine_problems(). Hints: labs/s11/README.md, lecture 11.2.")
+    active, problems = set(), []
+    t = date.fromisoformat(today)
+    per_cat: dict[tuple[str, str], int] = {}
+    for e in entries:
+        cid, suite = e.get("case", "?"), e.get("suite", "golden")
+        missing = next((f for f in QUARANTINE_FIELDS if not str(e.get(f, "")).strip()), None)
+        if missing:
+            problems.append(f"quarantine {cid}: missing {missing}")
+            continue
+        if suite in PRIVATE_SUITES:
+            problems.append("quarantine: a held-out case can't be quarantined (id in the restricted report)")
+            continue
+        if cid not in known.get(suite, {}):
+            problems.append(f"quarantine {cid}: no such case in {suite}")
+            continue
+        cat = known[suite][cid]
+        if cat == "adversarial":
+            problems.append(f"quarantine {cid}: adversarial cases can't be quarantined")
+            continue
+        added, expires = date.fromisoformat(e["added"]), date.fromisoformat(e["expires"])
+        days = (expires - added).days
+        if days < 0:
+            problems.append(f"quarantine {cid}: expires before it was added")
+            continue
+        if days > max_days:
+            problems.append(f"quarantine {cid}: {days} days is longer than {max_days}")
+            continue
+        renewals = int(e.get("renewals", 0))
+        if renewals > max_renewals:
+            problems.append(f"quarantine {cid}: renewed {renewals} times, more than {max_renewals}")
+            continue
+        if t > expires:
+            problems.append(f"quarantine {cid}: expired on {e['expires']} (owner {e['owner']}): fix the case or "
+                            "renew it in a reviewed change")
+            continue
+        if added > t:
+            continue
+        limit = max(1, sum(1 for c in known[suite].values() if c == cat) // 10)
+        if per_cat.get((suite, cat), 0) >= limit:
+            problems.append(f"quarantine {cid}: {cat} already has {limit} quarantined case(s), the limit")
+            continue
+        per_cat[(suite, cat)] = per_cat.get((suite, cat), 0) + 1
+        active.add(f"{suite}/{cid}")
+    return active, problems
 
 
 # ---------- 11.6: the whole gate ----------
@@ -230,7 +303,57 @@ def evaluate_gate(reports: dict[str, dict[str, Any]], baseline: dict[str, Any], 
           cand, k)}.
     passed is True only when there are no failures; warnings never fail the gate.
     """
-    raise LabNotDone("Lecture 11.6: implement evaluate_gate(). Hints: labs/s11/README.md, lecture 11.6.")
+    res = GateResult(passed=False)
+    private = [h for h in contamination if h.kind == "held-out notice"]
+    for h in contamination:
+        if h.kind != "held-out notice":
+            res.failures.append(f"contamination: {h.item} ({h.kind}) found in {h.source} ({h.share:.0%} of its "
+                                "n-grams)")
+    if private:
+        res.failures.append(f"heldout: {len(private)} contamination hit(s) (ids in the restricted report)")
+    known = {s: {c["id"]: c["category"] for c in r["cases"]} for s, r in reports.items()}
+    active, problems = quarantine_problems(quarantine, today, known, config["max_quarantine_days"])
+    res.failures += problems
+    res.quarantined = sorted(active)
+    k = config["k"]
+    for s in config["suites"]:
+        if s not in reports:
+            res.failures.append(f"no report for suite {s}")
+            continue
+        if s not in baseline.get("suites", {}):
+            res.failures.append(f"no baseline for suite {s}: write one in a reviewed change")
+            continue
+        rep, b = reports[s], baseline["suites"][s]
+        j = rep.get("judge", {})
+        if j.get("used") and j.get("kappa_judged", 0) < j.get("threshold", 1):
+            res.failures.append(f"{s}: the judge counted without calibration")
+        if rep["meta"]["dataset_sha256"] != b["dataset_sha256"]:
+            res.failures.append(f"{s}: dataset changed (baseline {b['dataset_sha256']}, now "
+                                f"{rep['meta']['dataset_sha256']}): re-baseline in its own reviewed change")
+            continue
+        base_all, cand_all = b["cases"], case_counts(rep)
+        keep = lambda d: {cid: v for cid, v in d.items() if f"{s}/{cid}" not in active}  # noqa: E731
+        base, cand = keep(base_all), keep(cand_all)
+        for cat, rule in config["rules"].items():
+            if not any(v["category"] == cat for v in base_all.values()):
+                continue
+            bl = [(v["n"], v["passes"]) for v in base.values() if v["category"] == cat]
+            cl = [(v["n"], v["passes"]) for v in cand.values() if v["category"] == cat]
+            if not bl or not cl:
+                res.failures.append(f"{s} {cat}: every case is quarantined")
+                continue
+            f, w = compare_category(cat, bl, cl, rule, k, config["alpha"])
+            res.failures += [f"{s} {x}" for x in f]
+            res.warnings += [f"{s} {x}" for x in w]
+        broken = [f"{s} {cid}: now fails every attempt ({base[cid]['passes']}/{base[cid]['n']} -> 0/{v['n']})"
+                  for cid, v in cand.items() if cid in base and base[cid]["passes"] > 0 and v["passes"] == 0]
+        if broken and s in PRIVATE_SUITES:
+            broken = [f"{s}: {len(broken)} case(s) now fail every attempt (ids in the restricted report)"]
+        res.failures += broken
+        res.diff[s] = [{**row, "quarantined": f"{s}/{row['id']}" in active} for row in case_diff(base_all, cand_all)]
+        res.numbers[s] = {"baseline": category_numbers(base, k), "candidate": category_numbers(cand, k)}
+    res.passed = not res.failures
+    return res
 
 
 # ---------- running it ----------
