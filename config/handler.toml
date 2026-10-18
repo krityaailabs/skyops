@@ -1,0 +1,6 @@
+# Section 11: which version of the disruption handler's instructions is deployed. A prompt is configuration,
+# versioned like code: changing this line is a release, so the CI eval gate (make ci-gate) judges it.
+# Versions live in skyops/agent/disruption.py (SYSTEM). Each needs its own recorded attempts: a prompt the
+# replays have never seen fails with ReplayMiss, never with a stale pass.
+[disruption]
+prompt = "v2"

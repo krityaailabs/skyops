@@ -8,12 +8,16 @@ pass^k  (Yao et al. 2024, tau-bench): the chance that ALL k attempts pass: C(c, 
 Cohen's kappa (Cohen 1960): agreement between two raters, corrected for the agreement chance alone would give:
         (p_o - p_e) / (1 - p_e). Used to calibrate the judge against human labels. With a few dozen labels it is
         rough, so bootstrap_kappa_ci reports how rough.
+Section 11 adds two tools for the gate and for drift: the Wilson score interval for a pass rate (wilson_interval),
+and a one-sided two-proportion z-test for "did this rate fall?" (two_proportion_test).
 """
 from __future__ import annotations
 
+import math
 import random
 from collections import Counter
 from typing import Hashable, Sequence
+from skyops.model.errors import LabNotDone
 
 
 def _check(n: int, c: int, k: int) -> None:
@@ -112,3 +116,61 @@ def interpret_kappa(k: float) -> str:
         if k <= top:
             return word
     return "almost perfect"
+
+
+# ---------- Section 11: intervals and tests for the gate and for drift ----------
+
+def wilson_interval(c: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Lecture 11.2: the Wilson score interval for a pass rate of c passes in n attempts (Wilson 1927).
+
+    p = c / n; denom = 1 + z**2 / n; centre = (p + z**2 / (2 * n)) / denom;
+    half = (z / denom) * sqrt(p * (1 - p) / n + z**2 / (4 * n**2)). Return (centre - half, centre + half), each
+    clamped to [0, 1], and exactly 0.0 as the lower end when c == 0 and exactly 1.0 as the upper end when c == n
+    (floating point would otherwise give 0.9999999999999999). Raise ValueError unless n >= 1 and 0 <= c <= n.
+    With z = 1.96 it is a 95% interval.
+    Unlike the textbook p +/- z * sqrt(p(1-p)/n), it never collapses to zero width at 0/n or n/n, which is
+    exactly where small eval suites live. It assumes the n attempts are independent; attempts of the same case
+    are not (some cases are simply harder), so for a suite it is a lower bound on the real uncertainty.
+    """
+    raise LabNotDone("Lecture 11.2: implement wilson_interval(). Hints: labs/s11/README.md, lecture 11.2.")
+
+
+def two_proportion_test(c1: int, n1: int, c2: int, n2: int) -> tuple[float, float]:
+    """Lecture 11.1: is the second rate (c2 of n2) LOWER than the first (c1 of n1)? A one-sided two-proportion
+    z-test with the pooled standard error.
+
+    p1 = c1 / n1, p2 = c2 / n2, pooled = (c1 + c2) / (n1 + n2), se = sqrt(pooled * (1 - pooled) * (1/n1 + 1/n2)),
+    z = (p1 - p2) / se, and the one-sided p-value is P(Z >= z) = 0.5 * erfc(z / sqrt(2)). Return (z, p).
+    If pooled is 0 or 1 (both rates identical at the extreme), there is no evidence of a drop: return (0.0, 1.0).
+    Raise ValueError unless n1, n2 >= 1 and each c is within 0..n.
+    Assumptions, stated because they matter: every attempt is an independent trial with the same chance of
+    passing within its group, and both groups are large enough for the normal approximation (a rough guide:
+    at least five passes and five failures expected in each). Eval attempts are clustered by case, so the
+    p-value is optimistic; treat it as a noise filter, never as proof.
+    """
+    raise LabNotDone("Lecture 11.1: implement two_proportion_test(). Hints: labs/s11/README.md, lecture 11.1.")
+
+
+def fisher_drop_p(c1: int, n1: int, c2: int, n2: int) -> float:
+    """Fisher's exact test, one-sided: the chance of the second group having c2 passes OR FEWER, given both groups'
+    sizes and the total number of passes, if both groups shared one pass rate (the hypergeometric tail). Exact at
+    any size, so it is the right test when cells are small; it still treats attempts as independent."""
+    if n1 < 1 or n2 < 1 or not (0 <= c1 <= n1 and 0 <= c2 <= n2):
+        raise ValueError(f"need n >= 1 and 0 <= c <= n (got {c1}/{n1}, {c2}/{n2})")
+    k, n = c1 + c2, n1 + n2
+    total = math.comb(n, n2)
+    return min(1.0, sum(math.comb(k, x) * math.comb(n - k, n2 - x) for x in range(max(0, k - n1), c2 + 1)) / total)
+
+
+MIN_EXPECTED = 10        # below this many expected passes or failures in any cell, the normal approximation is unsafe
+
+
+def drop_p(c1: int, n1: int, c2: int, n2: int) -> tuple[float, str]:
+    """The one-sided p-value for "the second rate is lower than the first", and the method used. Use
+    two_proportion_test when every cell's expected count (each group's n times the pooled pass and fail shares) is
+    at least MIN_EXPECTED; otherwise Fisher's exact test. Return (p, "z") or (p, "exact")."""
+    pooled = (c1 + c2) / (n1 + n2)
+    expected = [n * share for n in (n1, n2) for share in (pooled, 1 - pooled)]
+    if min(expected) >= MIN_EXPECTED:
+        return two_proportion_test(c1, n1, c2, n2)[1], "z"
+    return fisher_drop_p(c1, n1, c2, n2), "exact"

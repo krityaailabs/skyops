@@ -1,4 +1,5 @@
-# Pinned 2026-10-09. Regenerate with `pip freeze` after a deliberate upgrade, never casually.
+# Pinned 2026-10-09. Regenerate with `pip freeze` after a deliberate upgrade, never casually. Direct dependencies,
+# plus jsonschema's own (Section 11); other transitive dependencies are not pinned, and there are no hashes.
 pydantic==2.14.0
 httpx==0.28.1
 pytest==9.1.1
@@ -6,6 +7,11 @@ mcp==2.3.0          # Section 6 on: official SDK v2, protocol revision 2026-07-2
 anyio==4.15.1       # Section 7 on: imported directly by the MCP labs, so pinned directly
 httpx2==2.13.0
 jsonschema==4.26.0
+jsonschema-specifications==2025.9.1   # Section 11: jsonschema's own dependencies, pinned at the
+referencing==0.37.0                   # versions installed and tested here (no hashes: pip installs
+rpds-py==2026.6.3                     # these versions but doesn't verify the downloads)
+attrs==26.1.0
 PyJWT==2.14.0
 cryptography==50.0.1
 uvicorn==0.53.0
+PyYAML==6.0.3       # Section 11: tools/check_workflow.py reads the CI workflow

@@ -1,0 +1,5 @@
+[
+ {"case": "e03_shorthand_spacing", "suite": "golden", "owner": "handler on-call (duty systems team)",
+  "reason": "In some attempts the handler copies ops shorthand (ETD, o/o hrs) into the passenger message. A rewrite step is being built; until it lands, this case is run and reported but doesn't count.",
+  "ticket": "SKY-412", "added": "2026-10-17", "expires": "2026-10-31"}
+]

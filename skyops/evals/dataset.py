@@ -31,6 +31,7 @@ from ..sim import flights as sim
 
 GOLDEN = ROOT / "data/evals/golden.jsonl"
 SCHEMA = ROOT / "data/evals/golden.schema.json"
+HELDOUT = ROOT / "data/evals/heldout.jsonl"      # Section 11: cases from reviewed production traces, same schema
 CATEGORIES = ("normal", "edge", "adversarial")
 MIN_PER_CATEGORY = 5
 WRITE_TOOLS = ("notify_passengers", "issue_voucher")

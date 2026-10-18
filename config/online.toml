@@ -1,0 +1,11 @@
+# Section 11 (lecture 11.3): the online eval. What to sample, how much, and who reads the review queue.
+[online]
+sample_rate = 0.20        # share of production traces sampled (by hashing the trace id) for scoring and review
+queue_per_day = 12        # most traces a person reviews in a day (failures first, then random passes)
+random_pass_rate = 0.25   # share of PASSING sampled traces also queued: what the checks miss is only found there
+alert_p = 0.01            # a check's daily pass rate is alarming below the last known-good week at this p ...
+alert_min_failures = 3    # ... and with at least this many failures that day
+
+[online.reviewers]        # who reviews the queue, by weekday (0 = Monday)
+weekday = "duty-manager lead"
+weekend = "handler on-call"

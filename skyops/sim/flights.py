@@ -39,9 +39,25 @@ _FLIGHTS = [
 ]
 
 
+# Section 11: operations added to the day after the timetable was published (extra sections and re-timed
+# services). A status lookup finds them; the published timetable (departures_on, departures_to) does not list them,
+# so every earlier section's listings, and the recordings built on them, are unchanged. The held-out eval suite
+# uses only these flights, so it shares no flight with the golden set.
+_ADDED = [
+    FlightRecord("ZZ126", DATE, "HUB", "BOM", "06:50", "06:50", "DEPARTED", "C1", None),
+    FlightRecord("ZZ402", DATE, "HUB", "MAD", "17:25", "18:40", "DELAYED", "A8", "Air traffic control slot"),
+    FlightRecord("ZZ415", DATE, "HUB", "DEL", "20:50", "20:50", "CANCELLED", None, "Crew shortage"),
+    FlightRecord("ZZ436", DATE, "HUB", "HKG", "14:10", "14:10", "SCHEDULED", "C6", None),
+    FlightRecord("ZZ458", DATE, "HUB", "IST", "21:20", "22:05", "DELAYED", "B2", "Weather at destination"),
+    FlightRecord("ZZ471", DATE, "HUB", "AMS", "18:35", "19:10", "DELAYED", "A5", "Late inbound aircraft"),
+    FlightRecord("ZZ483", DATE, "HUB", "ZRH", "22:15", "22:15", "SCHEDULED", "A2", None),
+    FlightRecord("ZZ497", DATE, "HUB", "LHR", "12:05", "12:50", "DELAYED", "B5", "Technical check"),
+]
+
+
 def find(flight_number: str, operating_date: str) -> FlightRecord | None:
     key = flight_number.replace(" ", "").upper()
-    return next((f for f in _FLIGHTS if f.flight_number == key and f.operating_date == operating_date), None)
+    return next((f for f in _FLIGHTS + _ADDED if f.flight_number == key and f.operating_date == operating_date), None)
 
 
 def departures_to(destination: str, operating_date: str) -> list[FlightRecord]:

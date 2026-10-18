@@ -23,7 +23,10 @@ from .contracts import IdempotencyStore, SideEffect, ToolContract, ToolError, as
 VOUCHER_LIMIT_EUR = 150          # above this, a person approves (Section 18 turns this into an approval tier)
 PAGE_SIZE = 5
 BOOKED = {"ZZ101": 168, "ZZ118": 174, "ZZ142": 296, "ZZ156": 188, "ZZ173": 212, "ZZ188": 180, "ZZ214": 212,
-          "ZZ230": 301, "ZZ247": 254, "ZZ261": 176}
+          "ZZ230": 301, "ZZ247": 254, "ZZ261": 176,
+          # Section 11: the day's added operations (skyops/sim/flights.py _ADDED)
+          "ZZ126": 158, "ZZ402": 166, "ZZ415": 231, "ZZ436": 274, "ZZ458": 199, "ZZ471": 143, "ZZ483": 121,
+          "ZZ497": 187}
 
 
 def _flight(v: str) -> str:

@@ -6,5 +6,8 @@
     judge.py     an LLM judge for the one criterion code can't check, and its calibration (10.6)
     stats.py     pass@k, pass^k and Cohen's kappa (10.7, 10.8)
     harness.py   score every attempt, aggregate, write the report (10.8)
-Section 11 puts this harness in CI and runs it on sampled production traffic.
+Section 11 puts this harness in CI and runs it on sampled production traffic:
+    gate.py           the release gate: baselines, per-category thresholds, quarantine, the red build's diff (11.1, 11.2, 11.6)
+    online.py         online evals: hash sampling, reference-free checks on traces, PSI, the review queue (11.3, 11.5)
+    contamination.py  eval items found in prompts, examples or fine-tuning data (11.4, 11.5)
 """

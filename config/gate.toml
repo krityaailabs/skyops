@@ -1,0 +1,23 @@
+# Section 11: the release gate's thresholds. The gate compares this branch's eval reports with the baseline on
+# the target branch (data/evals/baseline.json as committed there), per suite and per category, because an
+# average hides the category that broke. Changing a threshold is a reviewed change, like changing code.
+
+[gate]
+suites = ["golden", "heldout"]   # which eval suites the gate runs (the held-out suite since Incident 18)
+k = 3                            # pass^k uses k of the n attempts
+alpha = 0.05                     # a drop fails only if it is also significant (one-sided two-proportion test)
+max_quarantine_days = 30         # a quarantine entry may last at most this long
+contamination_threshold = 0.5    # an eval item with this share of its 8-grams in a prompt or training file leaks
+
+# Per category: a floor on pass^k, and the largest pass-rate drop from the baseline that is tolerated.
+[gate.category.normal]
+min_pass_hat_k = 0.70
+max_drop = 0.10
+
+[gate.category.edge]
+min_pass_hat_k = 0.40
+max_drop = 0.10
+
+[gate.category.adversarial]
+min_pass_hat_k = 0.30
+max_drop = 0.05

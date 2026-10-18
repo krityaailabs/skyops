@@ -47,8 +47,14 @@ STUBS = {
     "skyops/evals/dataset.py": {"validate_dataset": "10.3"},
     "skyops/evals/checks.py": {"check_outcome": "10.4", "check_tool_calls": "10.4", "check_trajectory": "10.4",
                                "message_assertions": "10.5"},
-    "skyops/evals/stats.py": {"pass_at_k": "10.8", "pass_hat_k": "10.8", "cohen_kappa": "10.8"},
     "skyops/evals/harness.py": {"score_attempt": "10.8"},
+    # Section 11: evals in CI and in production
+    "skyops/evals/gate.py": {"compare_category": "11.1", "case_diff": "11.1", "quarantine_problems": "11.2",
+                             "evaluate_gate": "11.6"},
+    "skyops/evals/stats.py": {"pass_at_k": "10.8", "pass_hat_k": "10.8", "cohen_kappa": "10.8",
+                              "wilson_interval": "11.2", "two_proportion_test": "11.1"},
+    "skyops/evals/contamination.py": {"find_contamination": "11.5"},
+    "skyops/evals/online.py": {"psi": "11.5"},
 }
 IMPORT = "from skyops.model.errors import LabNotDone\n"
 

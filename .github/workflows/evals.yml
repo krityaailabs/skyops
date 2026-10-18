@@ -1,0 +1,58 @@
+# Section 11: the eval gate. CI runs the same command you run locally (make ci-gate), in replay mode, so it needs
+# no API key and spends no tokens. The baseline, thresholds and quarantine list are read from the BASE: the target
+# branch on a pull request, the previous commit on a push. But a pull_request run uses THIS file from the pull
+# request, and the pull request can also edit the gate's code and recordings: so give .github/workflows/,
+# skyops/evals/, fixtures/, data/evals/, config/ and the Makefile code owners (.github/CODEOWNERS), and make this
+# job a required status check on main (branch protection or a ruleset). Until then, a red gate is only advice.
+# Triggered by pull_request, never pull_request_target, which runs with the repository's secrets and token.
+name: eval-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-gate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}   # never cancel a run on main
+
+jobs:
+  eval-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SKYOPS_MODE: replay
+      BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+    steps:
+      - name: Check out, with history (the gate reads the baseline from the target branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements.lock
+      - name: Check this workflow
+        run: python tools/check_workflow.py
+      - name: Eval gate
+        run: make ci-gate BASE_REF="$BASE_REF"
+      - name: Job summary
+        if: ${{ !cancelled() }}
+        run: cat runs/s11/gate.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the gate report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: eval-gate
+          path: runs/s11/gate.json
+          if-no-files-found: error
+          retention-days: 30

@@ -12,6 +12,7 @@ measure a real model: the harness, checks and statistics don't change.
 from __future__ import annotations
 
 import json
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,18 @@ from .dataset import GoldenCase
 
 N_ATTEMPTS = 5
 RUNS = Path("fixtures/s10/attempts")
+HANDLER_CONFIG = ROOT / "config/handler.toml"
+
+
+def deployed_version(path: Path = HANDLER_CONFIG) -> str:
+    """Section 11: the handler version config/handler.toml deploys ("v2" unless a release changes it)."""
+    return tomllib.loads(path.read_text())["disruption"]["prompt"] if path.exists() else "v2"
+
+
+def runs_folder(suite: str = "golden", version: str = "v2") -> Path:
+    """Where one suite's recorded attempts for one handler version live. Section 10's golden v2 attempts stay
+    where they were; every other (suite, version) pair is under fixtures/s11/<suite>/<version>/."""
+    return RUNS if (suite, version) == ("golden", "v2") else Path("fixtures/s11") / suite / version
 
 
 @dataclass

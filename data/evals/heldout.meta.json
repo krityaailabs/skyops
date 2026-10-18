@@ -1,0 +1,19 @@
+{
+ "suite": "heldout",
+ "file": "data/evals/heldout.jsonl",
+ "source": "people's verdicts from the online review queue (lecture 11.3): sampled production traces, relabelled as cases",
+ "built": "2026-09-26",
+ "refresh": "monthly",
+ "next_refresh": "2026-10-26",
+ "on_refresh": [
+  "add 4 to 8 new cases from the last month's review queue, keeping every category at 4 or more",
+  "retire cases older than three months into the golden set, where prompt authors may read them",
+  "re-record the deployed handler on the new cases, then write the baseline in its own reviewed change"
+ ],
+ "rules": [
+  "no prompt, worked example or fine-tuning record is written from these cases",
+  "no held-out case shares a flight with the golden set: the same flight and facts in a new format is the same case",
+  "per-case results never go to CI logs; the gate prints category numbers only",
+  "the contamination check runs against golden and every model input on every pull request"
+ ]
+}

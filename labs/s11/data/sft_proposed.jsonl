@@ -1,0 +1,40 @@
+{"completion": "ZZ352 is confirmed delayed to 23:25; I notified its 265 passengers once.", "from_trace": "t-1003-0092", "prompt": "ZZ352 IST ETD 23:25 (STD 22:30), weather at destination. Gate B7."}
+{"completion": "The notice and the system disagree on ZZ344, so I notified nobody.", "from_trace": "t-0925-0088", "prompt": "OPSFEED/2 FLT=ZZ344 DEST=MAD EVT=DLY STD=2310 ETD=0020"}
+{"completion": "ZZ814 is confirmed delayed to 00:40; I notified its 151 passengers once.", "from_trace": "t-1004-0086", "prompt": "ZZ814 DEL ETD 00:40 (STD 23:45), technical check. Gate B8."}
+{"completion": "The notice and the system disagree on ZZ377, so I notified nobody.", "from_trace": "t-0927-0022", "prompt": "Gate change ZZ377 LHR now B7 (was C4). STD 12:00 unchanged."}
+{"completion": "ZZ622 is confirmed delayed to 20:30; I notified its 151 passengers once.", "from_trace": "t-0923-0063", "prompt": "OPSFEED/2 FLT=ZZ622 DEST=HKG EVT=DLY STD=1920 ETD=2030 GATE=A5 RMK=AIR TRAFFIC CONTROL SLOT\nOPSFEED/2 FLT=ZZ622 DEST=HKG EVT=DLY STD=1920 ETD=2030 GATE=A5 RMK=AIR TRAFFIC CONTROL SLOT"}
+{"completion": "ZZ407 is confirmed cancelled; I told its 225 passengers once.", "from_trace": "t-0927-0088", "prompt": "OPSFEED/2 FLT=ZZ407 DEST=IST EVT=CNX RMK=CREW SHORTAGE"}
+{"completion": "ZZ513 is on time; no message needed.", "from_trace": "t-0921-0024", "prompt": "ZZ513 to Hong Kong is on time, gate A9."}
+{"completion": "The notice and the system disagree on ZZ324, so I notified nobody.", "from_trace": "t-0927-0074", "prompt": "OPSFEED/2 FLT=ZZ324 DEST=DEL EVT=DLY STD=2045 ETD=2215"}
+{"completion": "ZZ606 is confirmed delayed to 00:20; I notified its 244 passengers once.", "from_trace": "t-1003-0109", "prompt": "OPSFEED/2 FLT=ZZ606 DEST=BOM EVT=DLY STD=2355 ETD=0020 GATE=B3 RMK=CREW DUTY-TIME LIMIT"}
+{"completion": "ZZ372 is confirmed delayed to 01:25; I notified its 220 passengers once.", "from_trace": "t-0925-0099", "prompt": "OPSFEED/2 FLT=ZZ372 DEST=BOM EVT=DLY STD=2355 ETD=0125 GATE=B9 RMK=TECHNICAL CHECK"}
+{"completion": "ZZ763 is confirmed delayed to 21:20; I notified its 287 passengers once.", "from_trace": "t-1003-0061", "prompt": "ZZ763 MAD ETD 21:20 (STD 19:20), weather at destination. Gate C6."}
+{"completion": "ZZ433 is confirmed delayed to 10:40; I notified its 228 passengers once.", "from_trace": "t-0925-0003", "prompt": "ZZ433 NRT ETD 10:40 (STD 09:45), crew duty-time limit. Gate C8."}
+{"completion": "ZZ316 is confirmed delayed to 07:15; I notified its 254 passengers once.", "from_trace": "t-0921-0004", "prompt": "ZZ316 to Sydney is delayed to 07:15, late inbound aircraft. Gate B7."}
+{"completion": "ZZ460 is confirmed delayed to 19:35; I notified its 263 passengers once.", "from_trace": "t-0923-0068", "prompt": "ZZ460 to Madrid is delayed to 19:35, late inbound aircraft. Gate A1."}
+{"completion": "The notice and the system disagree on ZZ409, so I notified nobody.", "from_trace": "t-1003-0019", "prompt": "Passengers for Tokyo ZZ409 now board from gate B2 (was A8)."}
+{"completion": "ZZ569 is confirmed delayed to 19:45; I notified its 206 passengers once.", "from_trace": "t-0927-0058", "prompt": "ZZ569 LHR ETD 19:45 (STD 17:45), crew duty-time limit. Gate A7."}
+{"completion": "ZZ899 is confirmed delayed to 01:00; I notified its 242 passengers once.", "from_trace": "t-0923-0104", "prompt": "ZZ899 BLR ETD 01:00 (STD 23:50), technical check. Gate B3."}
+{"completion": "ZZ879 is on time; no message needed.", "from_trace": "t-0926-0119", "prompt": "OPSFEED/2 FLT=ZZ879 DEST=IST EVT=STS STD=2355 GATE=A6 RMK=ON TIME"}
+{"completion": "ZZ430 is on time; no message needed.", "from_trace": "t-0924-0087", "prompt": "OPSFEED/2 FLT=ZZ430 DEST=BOM EVT=STS STD=2055 GATE=C4 RMK=ON TIME"}
+{"completion": "The notice and the system disagree on ZZ404, so I notified nobody.", "from_trace": "t-0922-0005", "prompt": "ZZ404 JFK now ETD 12:00 (STD 10:35)."}
+{"completion": "ZZ591 is confirmed delayed to 22:05; I notified its 177 passengers once.", "from_trace": "t-0924-0065", "prompt": "OPSFEED/2 FLT=ZZ591 DEST=FRA EVT=DLY STD=2110 ETD=2205 GATE=B2 RMK=CREW DUTY-TIME LIMIT"}
+{"completion": "ZZ718 is confirmed delayed to 15:10; I notified its 269 passengers once.", "from_trace": "t-0922-0037", "prompt": "ZZ718 to Mumbai is delayed to 15:10, late inbound aircraft. Gate B3."}
+{"completion": "The notice and the system disagree on ZZ407, so I notified nobody.", "from_trace": "t-1004-0054", "prompt": "OPSFEED/2 FLT=ZZ407 DEST=JFK EVT=DLY STD=1445 ETD=1615"}
+{"completion": "Check ZZ214 first. The system says 20:15, not 21:30, so notify nobody and tell the duty manager the times differ.", "from_trace": "", "prompt": "ZZ214 SIN now ETD 21:30 (was 19:40), late inbound aircraft."}
+{"completion": "ZZ790 is confirmed delayed to 00:20; I notified its 202 passengers once.", "from_trace": "t-0926-0114", "prompt": "ZZ790 to Tokyo is delayed to 00:20, technical check. Gate C5."}
+{"completion": "ZZ349 is confirmed delayed to 13:30; I notified its 218 passengers once.", "from_trace": "t-0928-0017", "prompt": "ZZ349 BLR ETD 13:30 (STD 12:50), weather at destination. Gate A7."}
+{"completion": "ZZ792 is on time; no message needed.", "from_trace": "t-0922-0065", "prompt": "ZZ792 to Bengaluru is on time, gate B6."}
+{"completion": "ZZ606 is confirmed delayed to 13:15; I notified its 285 passengers once.", "from_trace": "t-0921-0040", "prompt": "ZZ606 to Paris is delayed to 13:15, technical check. Gate A7.\nZZ606 to Paris is delayed to 13:15, technical check. Gate A7."}
+{"completion": "ZZ349 is on time; no message needed.", "from_trace": "t-0922-0009", "prompt": "ZZ349 to Bengaluru is on time, gate C2."}
+{"completion": "The notice and the system disagree on ZZ803, so I notified nobody.", "from_trace": "t-1004-0045", "prompt": "Gate change ZZ803 DEL now B9 (was B2). STD 17:15 unchanged."}
+{"completion": "ZZ832 is on time; no message needed.", "from_trace": "t-0924-0114", "prompt": "OPSFEED/2 FLT=ZZ832 DEST=ZRH EVT=STS STD=2355 GATE=C2 RMK=ON TIME"}
+{"completion": "ZZ688 is confirmed delayed to 21:30; I notified its passengers once.", "from_trace": "", "prompt": "ZZ688 SIN now ETD 21:30 (was 19:40), crew rest."}
+{"completion": "ZZ613 is confirmed delayed to 19:15; I notified its 278 passengers once.", "from_trace": "t-0922-0073", "prompt": "ZZ613 CDG ETD 19:15 (STD 18:35), air traffic control slot. Gate B6.\nZZ613 CDG ETD 19:15 (STD 18:35), air traffic control slot. Gate B6."}
+{"completion": "ZZ588 is confirmed delayed to 00:50; I notified its 284 passengers once.", "from_trace": "t-1002-0104", "prompt": "OPSFEED/2 FLT=ZZ588 DEST=NRT EVT=DLY STD=2355 ETD=0050 GATE=A3 RMK=TECHNICAL CHECK"}
+{"completion": "ZZ471 is on time; no message needed.", "from_trace": "t-1003-0026", "prompt": "OPSFEED/2 FLT=ZZ471 DEST=LHR EVT=STS STD=1045 GATE=C5 RMK=ON TIME"}
+{"completion": "The notice and the system disagree on ZZ574, so I notified nobody.", "from_trace": "t-0922-0118", "prompt": "ZZ574 to New York is delayed, new departure 00:25."}
+{"completion": "The notice and the system disagree on ZZ609, so I notified nobody.", "from_trace": "t-1002-0103", "prompt": "ZZ609 ZRH now ETD 01:00 (STD 23:20)."}
+{"completion": "ZZ457 is confirmed delayed to 16:20; I notified its 204 passengers once.", "from_trace": "t-0923-0047", "prompt": "ZZ457 CDG ETD 16:20 (STD 15:10), weather at destination. Gate B1."}
+{"completion": "ZZ490 is confirmed delayed to 00:30; I notified its 186 passengers once.", "from_trace": "t-1004-0108", "prompt": "OPSFEED/2 FLT=ZZ490 DEST=SIN EVT=DLY STD=2350 ETD=0030 GATE=A4 RMK=AIR TRAFFIC CONTROL SLOT\nOPSFEED/2 FLT=ZZ490 DEST=SIN EVT=DLY STD=2350 ETD=0030 GATE=A4 RMK=AIR TRAFFIC CONTROL SLOT"}
+{"completion": "ZZ551 is confirmed delayed to 19:35; I notified its 285 passengers once.", "from_trace": "t-0926-0062", "prompt": "ZZ551 to Madrid is delayed to 19:35, technical check. Gate C6."}

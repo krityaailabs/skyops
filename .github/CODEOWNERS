@@ -1,0 +1,13 @@
+# Section 11: everything the eval gate trusts needs an owner's review. A pull_request run uses the workflow file,
+# gate code and recordings from the pull request itself, so these paths are the gate. Replace the team with yours,
+# and turn on "Require review from Code Owners" for main.
+/.github/workflows/   @skyops/eval-owners
+/.github/CODEOWNERS   @skyops/eval-owners
+/skyops/evals/        @skyops/eval-owners
+/skyops/agent/disruption.py @skyops/eval-owners
+/fixtures/            @skyops/eval-owners
+/data/evals/          @skyops/eval-owners
+/data/prompts/        @skyops/eval-owners
+/config/              @skyops/eval-owners
+/tools/               @skyops/eval-owners
+/Makefile             @skyops/eval-owners

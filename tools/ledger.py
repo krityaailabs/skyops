@@ -660,6 +660,196 @@ def s10() -> dict:
     }
 
 
+ORDINALS = ("first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth fourteenth "
+            "fifteenth sixteenth seventeenth eighteenth nineteenth twentieth twenty-first twenty-second twenty-third "
+            "twenty-fourth twenty-fifth twenty-sixth twenty-seventh twenty-eighth twenty-ninth thirtieth "
+            "thirty-first").split()
+
+
+def say_date(iso: str, weekday: bool = True) -> str:
+    """A date as the narration speaks it, from the data: "Monday the twenty-sixth of October"."""
+    from datetime import date
+    d = date.fromisoformat(iso)
+    day = f"the {ORDINALS[d.day - 1]} of {d.strftime('%B')}"
+    return f"{d.strftime('%A')} {day}" if weekday else day
+
+
+def s11() -> dict:
+    """Section 11: the eval gate, flaky runs, online evals, contamination, Incident 18 and the CI workflow. Offline and
+    deterministic: the handler's turns are scripted replays and the production log is synthetic; every number here is
+    what the real gate, checks, statistics and scans give."""
+    import logging
+    import tomllib
+    logging.disable(logging.CRITICAL)
+    from labs.s11 import contamination_demo, flaky_demo, gate_demo, incident, online_demo
+    from skyops.agent.disruption import SYSTEM
+    from skyops.evals.contamination import N as NGRAM, THRESHOLD as CTHR, eval_items, find_contamination, model_inputs
+    from skyops.evals.gate import BASELINE, evaluate_gate, load_config, load_quarantine
+    from skyops.evals.harness import run_suite
+    from skyops.evals.online import psi_band
+    sys.path.insert(0, str(ROOT / "tools"))
+    import check_workflow
+    cfg = load_config()
+    base = json.loads(BASELINE.read_text())
+    q = load_quarantine()
+
+    def gate(version, suites, today="2026-10-17", contamination=()):
+        c = {**cfg, "suites": list(suites)}
+        reps = {s: run_suite(suite=s, version=version, k=cfg["k"]) for s in suites}
+        return evaluate_gate(reps, base, c, q, today, contamination), reps
+
+    g2, r2 = gate("v2", ["golden", "heldout"])
+    g3, r3 = gate("v3", ["golden"])
+    g3full, _ = gate("v3", ["golden", "heldout"])
+    nums = g3.numbers["golden"]
+    gd = {v: gate_demo.figures(v) for v in ("v2", "v3")}
+    fl = flaky_demo.figures("2026-10-17")
+    fl_late = flaky_demo.figures("2026-11-01")
+    on = online_demo.figures()
+    from skyops.evals.online import check_failures, review_queue
+    online_cfg = tomllib.loads((ROOT / "config/online.toml").read_text())["online"]
+    queue = review_queue(on["sampled"], per_day=online_cfg["queue_per_day"], rate_pass=online_cfg["random_pass_rate"])
+    QUEUE_DAY = "2026-09-27"
+    qday = queue[QUEUE_DAY]
+    cd = contamination_demo.figures()
+    inc = incident.figures()
+    hits4 = find_contamination(eval_items(), model_inputs("v4"))
+    g4then, r4 = gate("v4", ["golden"], incident.RELEASE[:10])
+    g4now, _ = gate("v4", ["golden", "heldout"], incident.RELEASE[:10], hits4)
+    wf = check_workflow.load(check_workflow.WORKFLOW)
+    job = wf["jobs"]["eval-gate"]
+    fails = check_failures(on["sampled"])
+    rule = cfg["rules"]
+    first_all = next(d for d, *_, a in inc["daily_all"] if a)
+    first_smp = next((d for d, *_, a in inc["daily_sample"] if a), None)
+    day1 = inc["daily_all"][0]
+    rep_call = next(c for c in inc["reported"].trace["calls"] if c["name"] == "notify_passengers")
+    edge_fail = next(f for f in g3.failures if f.startswith("golden edge"))
+    adv_warn = next(w for w in g3.warnings if w.startswith("golden adversarial"))
+    import re as _re
+    pval = lambda t: float(_re.search(r"p = ([0-9.]+)", t).group(1))  # noqa: E731
+    from skyops.evals.stats import drop_p, fisher_drop_p
+    from skyops.evals.online import new_bins, psi as _psi, outcome_counts
+    o_ref, o_cur = outcome_counts(on["ref"]), outcome_counts(on["cur"])
+    g3full_adv = next(w for w in g3full.warnings if w.startswith("heldout adversarial"))
+    sft = contamination_demo
+    worst_single = min(fl["single"])
+    v4tot = sum(inc["v4_fmt"].values())
+    return {
+        "gate": {"k": cfg["k"], "alpha": cfg["alpha"], "suites": len(cfg["suites"]),
+                 "normal_floor": rule["normal"].min_pass_hat_k, "edge_floor": rule["edge"].min_pass_hat_k,
+                 "adversarial_floor": rule["adversarial"].min_pass_hat_k,
+                 "normal_max_drop_points": round(rule["normal"].max_drop * 100),
+                 "adversarial_max_drop_points": round(rule["adversarial"].max_drop * 100),
+                 "prompt_v2_chars": len(SYSTEM["v2"]), "prompt_v3_chars": len(SYSTEM["v3"]),
+                 "prompt_cut_share": round(1 - len(SYSTEM["v3"]) / len(SYSTEM["v2"]), 4),
+                 "v2_pass_rate_share": gd["v2"]["overall"], "v3_pass_rate_share": gd["v3"]["overall"],
+                 "overall_min_share": gate_demo.OVERALL_MIN, "v2_green": g2.passed, "v3_red": not g3.passed,
+                 "edge_base_share": nums["baseline"]["edge"]["pass_rate"],
+                 "edge_v3_share": nums["candidate"]["edge"]["pass_rate"],
+                 "edge_drop_points": round((nums["baseline"]["edge"]["pass_rate"] - nums["candidate"]["edge"]["pass_rate"]) * 100),
+                 "edge_p": pval(edge_fail),
+                 "adv_base_share": nums["baseline"]["adversarial"]["pass_rate"],
+                 "adv_v3_share": nums["candidate"]["adversarial"]["pass_rate"], "adv_p": pval(adv_warn),
+                 "adv_drop_points": round((nums["baseline"]["adversarial"]["pass_rate"] - nums["candidate"]["adversarial"]["pass_rate"]) * 100),
+                 "edge_attempts": nums["candidate"]["edge"]["attempts"],
+                 "v3_failures": len(g3.failures), "v3_warnings": len(g3.warnings),
+                 "v3_full_failures": len(g3full.failures), "v3_full_warnings": len(g3full.warnings),
+                 "broken": sum("now fails every attempt" in f for f in g3.failures),
+                 "worse_cases": sum(r["change"] == "worse" for r in g3.diff["golden"]),
+                 "baseline_cases": sum(len(v["cases"]) for v in base["suites"].values()),
+                 "golden_cases": len(base["suites"]["golden"]["cases"]),
+                 "heldout_cases": len(base["suites"]["heldout"]["cases"]),
+                 "n": base["suites"]["golden"]["attempts_per_case"]},
+        "flaky": {"cases": fl["cases"], "n": fl["n"], **{f"run{i + 1}_green": g for i, g in enumerate(fl["runs"])},
+                  "naive_min_share": flaky_demo.NAIVE_MIN,
+                  "naive_green": sum(g / fl["cases"] >= flaky_demo.NAIVE_MIN for g in fl["runs"]),
+                  "naive_red": sum(g / fl["cases"] < flaky_demo.NAIVE_MIN for g in fl["runs"]),
+                  "rerun_green": fl["rerun_green"], "flaky_cases": len(fl["flaky"]),
+                  "pass_hat_k_share": fl["pass_hat_k"], "worst_run": worst_single[0], "worst_lo_share": round(worst_single[1], 4),
+                  "worst_hi_share": round(worst_single[2], 4), "full_rate_share": round(fl["total"][0] / fl["total"][1], 4),
+                  **{f"{c}_passes": v[0] for c, v in fl["cats"].items()}, **{f"{c}_attempts": v[1] for c, v in fl["cats"].items()},
+                  **{f"{c}_lo_share": round(v[2], 4) for c, v in fl["cats"].items()},
+                  **{f"{c}_hi_share": round(v[3], 4) for c, v in fl["cats"].items()},
+                  "total_passes": fl["total"][0], "total_attempts": fl["total"][1],
+                  "quarantine_entries": len(q), "quarantine_expires": q[0]["expires"], "quarantine_added": q[0]["added"],
+                  "quarantine_days": cfg["max_quarantine_days"], "late_today": fl_late["today"],
+                  "expires_day": say_date(q[0]["expires"]), "late_day": say_date(fl_late["today"], False),
+                  "late_red": bool(fl_late["problems"]), "sha_identical": len(fl["shas"]) == 1},
+        "online": {"traces": len(on["traces"]), "days": len({t["day"] for t in on["traces"]}),
+                   "per_day": len(on["traces"]) // len({t["day"] for t in on["traces"]}), "week": len(on["week"]),
+                   "sampled": len(on["sampled"]), "sample_rate_share": on["rate"],
+                   "fail_confirmed": fails["confirmed"], "fail_trajectory": fails["trajectory"],
+                   "fail_assertions": fails["assertions"], "ref_sampled": len(on["ref"]), "cur_sampled": len(on["cur"]),
+                   "p_confirmed": round(on["drift"]["confirmed"]["p"], 2), "p_trajectory": round(on["drift"]["trajectory"]["p"], 2),
+                   "p_assertions": round(on["drift"]["assertions"]["p"], 2),
+                   "psi_outcomes": round(on["drift"]["psi_outcomes"], 3),
+                   "psi_outcomes_band": psi_band(on["drift"]["psi_outcomes"]),
+                   "golden_prose": on["golden_formats"]["prose"], "golden_shorthand": on["golden_formats"]["shorthand"],
+                   "golden_feed": on["golden_formats"]["feed"], "cur_feed": on["cur_formats"]["feed"],
+                   "psi_before": round(_psi(on["golden_formats"], on["ref_formats"]), 2),
+                   "cur_feed_share": round(on["cur_formats"]["feed"] / sum(on["cur_formats"].values()), 4),
+                   "cur_total": sum(on["cur_formats"].values()),
+                   "psi_outcomes_tiny_eps": round(_psi(o_ref, o_cur, eps=1e-6), 3),
+                   "psi_outcomes_tiny_band": psi_band(_psi(o_ref, o_cur, eps=1e-6)),
+                   "empty_bins": sum(1 for k in o_ref if k != "pass" and (o_ref[k] == 0) != (o_cur[k] == 0)),
+                   "queue_days": len(queue), "queue_min": min(len(v) for v in queue.values()),
+                   "queue_max": max(len(v) for v in queue.values()), "queue_cap": online_cfg["queue_per_day"],
+                   "random_pass_share": online_cfg["random_pass_rate"], "queue_day_items": len(qday),
+                   "queue_day_failing": sum(i["why"] != "random pass" for i in qday),
+                   "psi_little": __import__("skyops.evals.online", fromlist=["PSI_LITTLE"]).PSI_LITTLE,
+                   "psi_large": __import__("skyops.evals.online", fromlist=["PSI_LARGE"]).PSI_LARGE,
+                   "queue_day": say_date(QUEUE_DAY), "week_day": say_date(on["first"], False), "queue_weekend": __import__("datetime").date.fromisoformat(QUEUE_DAY).weekday() >= 5, "split_day": say_date(on["split"]),
+                   "fail_bin_max": max(v for o in (on["ref"], on["cur"]) for k, v in
+                                       __import__("skyops.evals.online", fromlist=["outcome_counts"]).outcome_counts(o).items()
+                                       if k != "pass"),
+                   "queue_failing": sum(i["why"] != "random pass" for v in queue.values() for i in v),
+                   "alert_p": online_cfg["alert_p"], "alert_min_failures": online_cfg["alert_min_failures"]},
+        "contam": {"items": len(cd["items"]), "golden": cd["kinds"]["golden notice"], "heldout": cd["kinds"]["held-out notice"],
+                   "labels": cd["kinds"]["judge label"], "n": NGRAM, "threshold_share": CTHR,
+                   "proposed": cd["proposed_records"], "leaks": len(cd["hits"]), "record": cd["record"],
+                   "leak_share": cd["hits"][0].share, "committed": cd["committed_records"],
+                   "committed_leaks": len(cd["committed_hits"]), "paraphrase_share": cd["paraphrase_share"],
+                   "near_record": cd["short_record"], "near_share": cd["short_hits"][0].share if cd["short_hits"] else 0,
+                   "near_n": 6, "corpus_docs": next(v for k, v in cd["inputs"].items() if "retrieval" in k),
+                   "gpt3_min": 8,
+                   "gpt3_ngram": 13, "gpt4_chars": 50, "gpt4_substrings": 3, "yang_ngram": 10},
+        "incident": {"recipients": rep_call["result"]["recipients"], "sent_time": inc["reported"].trace["ts"][11:16],
+                     "v4_runs": inc["v4_runs"], "v4_bad": inc["v4_bad"], "v4_people": inc["v4_people"],
+                     "before_runs": inc["before_runs"], "before_bad": inc["before_bad"], "errors": inc["errors"],
+                     **{f"{k}_fail_share": round(b / n, 4) for k, (b, n) in inc["by_fmt"].items()},
+                     **{f"{k}_failures": b for k, (b, n) in inc["by_fmt"].items()},
+                     "v4_feed_share": round(inc["v4_fmt"]["feed"] / v4tot, 4),
+                     "feed_week_share": round(inc["feed_week"]["feed"] / sum(inc["feed_week"].values()), 4),
+                     "v2_feed_failures": inc["v2_feed"][0], "v2_feed_runs": inc["v2_feed"][1],
+                     "v2_feed_fail_share": round(inc["v2_feed"][0] / inc["v2_feed"][1], 4),
+                     "v2_other_fail_share": round(inc["v2_other"][0] / inc["v2_other"][1], 4),
+                     "heldout_adv_p": pval(g3full_adv),
+                     "golden_v2_share": inc["rates"][("golden", "v2")], "heldout_v2_share": inc["rates"][("heldout", "v2")],
+                     "golden_v4_share": inc["rates"][("golden", "v4")], "heldout_v4_share": inc["rates"][("heldout", "v4")],
+                     "leaks": len(hits4), "then_green": g4then.passed,
+                     "then_edge_share": g4then.numbers["golden"]["candidate"]["edge"]["pass_rate"],
+                     "now_failures": len(g4now.failures), "first_alert_all": first_all, "first_alert_sample": first_smp,
+                     "first_alert_all_day": say_date(first_all), "first_alert_sample_day": say_date(first_smp) if first_smp else "not at all that week",
+                     "sample_alerts": sum(a for *_, a in inc["daily_sample"]),
+                     "reported_day": say_date(inc["reported"].trace["day"]),
+                     "heldout_built_day": say_date(json.loads((ROOT / "data/evals/heldout.meta.json").read_text())["built"]), "feed_day": say_date(inc["feed_day"]),
+                     "drift_lead_days": (__import__("datetime").date.fromisoformat(incident.RELEASE[:10])
+                                         - __import__("datetime").date.fromisoformat(inc["feed_day"])).days,
+                     "release_day": say_date(incident.RELEASE[:10]), "release_time": incident.RELEASE[11:],
+                     "rollback_time": incident.ROLLBACK[11:],
+                     "day1_failures": day1[1], "day1_runs": day1[2]},
+        "lab": {"jobs": len(wf["jobs"]), "steps": len(job["steps"]), "timeout": job["timeout-minutes"],
+                "retention": job["steps"][-1]["with"]["retention-days"], "triggers": len(wf["on"]),
+                "workflow_problems": len(check_workflow.problems()), "exit_green": 0, "exit_red": 1, "exit_cant_run": 2},
+        "meta": {"s11_fitness": count_tests("fitness/s11"), "s11_hidden": count_tests("grading/s11"),
+                 # four s11 fitness checks need no lab function: the workflow, the workflow checker, a prompt
+                 # without recordings, and no shared held-out flights (the s11start capture confirms the count)
+                 "s11_start_failing": count_tests("fitness/s11") - 4,
+                 "all_at_s11": count_tests("tests") + sum(count_tests(f"fitness/s{i:02d}") for i in range(12))},
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
@@ -686,6 +876,8 @@ def main() -> int:
         data["s09"] = s09()
     if (ROOT / "labs/s10").exists():
         data["s10"] = s10()
+    if (ROOT / "labs/s11").exists():
+        data["s11"] = s11()
     bad = False
     for name, d in data.items():
         text = json.dumps(d, indent=1, sort_keys=True)

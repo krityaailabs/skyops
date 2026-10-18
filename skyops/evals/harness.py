@@ -22,14 +22,17 @@ from ..cost import per_thousand
 from ..settings import ROOT, Settings
 from ..sim import flights as sim
 from .checks import CheckResult, check_outcome, check_tool_calls, check_trajectory, message_assertions
-from .dataset import GOLDEN, GoldenCase, dataset_sha256, load_golden
+from .dataset import GOLDEN, HELDOUT, GoldenCase, dataset_sha256, load_golden
 from .judge import FIXTURE as JUDGE_FIXTURE, THRESHOLD, Calibration, Judge, calibrate
-from .runner import N_ATTEMPTS, Attempt, attempt_files, run_case, turns_label
+from .runner import N_ATTEMPTS, Attempt, attempt_files, run_case, runs_folder, turns_label
 from .stats import pass_at_k, pass_hat_k
 
 K = 3
 OUT = ROOT / "runs/s10"
 CHECK_ORDER = ("outcome", "tool_calls", "trajectory", "assertions", "judge")
+# Section 11: the suites a gate can run. The held-out suite comes from reviewed production traces (11.3, 11.4);
+# no prompt, example or fine-tune file may be written from it.
+SUITES = {"golden": ("golden disruption cases", GOLDEN), "heldout": ("held-out disruption cases", HELDOUT)}
 
 
 @dataclass
@@ -119,14 +122,19 @@ def summarise(cases: list[GoldenCase], scores: dict[str, list[AttemptScore]], at
 
 
 def run_suite(cases: list[GoldenCase] | None = None, n: int = N_ATTEMPTS, k: int = K, judge: Judge | None = None,
-              calibration: Calibration | None = None, threshold: float = THRESHOLD) -> dict[str, Any]:
+              calibration: Calibration | None = None, threshold: float = THRESHOLD, suite: str = "golden",
+              version: str = "v2") -> dict[str, Any]:
     """Run every case n times, score every attempt, and build the report. If a judge is given, it is calibrated
     first (or `calibration` is used), and its verdicts count only if ITS OWN kappa, on the held-out messages it
     actually grades, reaches `threshold`. The pipeline's kappa is reported beside it, never gated on: it includes
     verdicts code decided.
     Replayed, calibrating on every run is free. Live, it costs one judge call per labelled item, so in production
-    store the calibration per judge model and prompt version, and pass it in."""
-    cases = cases or load_golden()
+    store the calibration per judge model and prompt version, and pass it in.
+    Section 11: `suite` picks the dataset (SUITES) and `version` the handler's instructions; each pair replays
+    its own recorded attempts (runner.runs_folder)."""
+    name, path = SUITES[suite]
+    cases = cases or load_golden(path)
+    folder = runs_folder(suite, version)
     use = None
     cal_out: dict[str, Any] = {"used": False, "reason": "no judge"}
     if judge is not None:
@@ -143,16 +151,16 @@ def run_suite(cases: list[GoldenCase] | None = None, n: int = N_ATTEMPTS, k: int
                    "reason": f"{own} meets the threshold {threshold}" if usable else
                    f"{own} is below the threshold {threshold}"}
         calls_before = judge.calls
-    attempts = {c.id: run_case(c, n) for c in cases}
+    attempts = {c.id: run_case(c, n, version, folder) for c in cases}
     scores = {c.id: [score_attempt(c, a, use) for a in attempts[c.id]] for c in cases}
     rep = summarise(cases, scores, attempts, k)
     rep["judge"] = cal_out
     if judge is not None:
         rep["judge"]["calls_in_suite"] = judge.calls - calls_before
-    rep["meta"] = {"suite": "golden disruption cases", "dataset": str(GOLDEN.relative_to(ROOT)),
-                   "dataset_sha256": dataset_sha256(), "simulator_date": sim.DATE, "attempts_per_case": n, "k": k,
-                   "handler": "skyops.agent.disruption v2",
-                   "model_turns": turns_label(attempt_files([c.id for c in cases], n)),
+    rep["meta"] = {"suite": name, "dataset": str(path.relative_to(ROOT)),
+                   "dataset_sha256": dataset_sha256(path), "simulator_date": sim.DATE, "attempts_per_case": n, "k": k,
+                   "handler": f"skyops.agent.disruption {version}",
+                   "model_turns": turns_label(attempt_files([c.id for c in cases], n, folder)),
                    "judge_turns": (turns_label([JUDGE_FIXTURE], Settings.from_env(provider="openai").mode)
                                    if judge is not None else "none")}
     return rep
@@ -201,12 +209,15 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--no-judge", action="store_true")
     ap.add_argument("--judge-threshold", type=float, default=THRESHOLD)
     ap.add_argument("--out", default=str(OUT))
+    ap.add_argument("--suite", choices=sorted(SUITES), default="golden", help="Section 11: which eval suite")
+    ap.add_argument("--handler", default="v2", help="Section 11: which handler version (skyops/agent/disruption.py)")
     a = ap.parse_args(argv)
     if a.k < 1 or a.n < a.k:
         ap.error(f"--n {a.n} must be at least --k {a.k}: pass@k and pass^k draw k of the n attempts")
     if a.n > N_ATTEMPTS and Settings.from_env().mode == "replay":
         ap.error(f"--n {a.n}: only {N_ATTEMPTS} attempts per case are recorded; re-record to replay more")
-    rep = run_suite(n=a.n, k=a.k, judge=None if a.no_judge else Judge(), threshold=a.judge_threshold)
+    rep = run_suite(n=a.n, k=a.k, judge=None if a.no_judge else Judge(), threshold=a.judge_threshold,
+                    suite=a.suite, version=a.handler)
     pj, pm = write_report(rep, Path(a.out))
     o, j = rep["overall"], rep["judge"]
     print(f"{o['cases']} cases x {rep['meta']['attempts_per_case']} attempts = {o['attempts']} attempts; "
